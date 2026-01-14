@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from qdrant_client import QdrantClient, models
+from pydantic import BaseModel
+from openai import OpenAI
 import os
 
 # Load environment variables from .env file
@@ -23,13 +26,11 @@ app.add_middleware(
 )
 
 
+qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {"message": "Welcome to Memory Agent API"}
 
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}

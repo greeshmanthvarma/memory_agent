@@ -1,0 +1,65 @@
+from datetime import datetime
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+class Memory(BaseModel):
+    id: int
+    content: str
+    embedding_id: int
+    memory_type: Literal["explicit", "implicit"]
+    conversation_id: Optional[int] = None
+    user_id: int
+    importance_score: float = 0.0
+    tags: List[str] = Field(default_factory=list)
+    related_memories: List[int] = Field(default_factory=list)
+    last_accessed_at: Optional[datetime] = None
+    last_updated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MemoryCreate(BaseModel):
+    content: str
+    embedding_id: int
+    memory_type: Literal["explicit", "implicit"]
+    conversation_id: Optional[int] = None
+    user_id: int
+    importance_score: float = 0.0
+    tags: List[str] = Field(default_factory=list)
+
+
+class MemoryUpdate(BaseModel):
+    content: Optional[str] = None
+    embedding_id: Optional[int] = None
+    memory_type: Optional[Literal["explicit", "implicit"]] = None
+    importance_score: Optional[float] = None
+    tags: Optional[List[str]] = None
+
+
+class Message(BaseModel):
+    id: int
+    content: str
+    role: Literal["user", "assistant"]
+    created_at: datetime
+    updated_at: datetime
+
+
+class Conversation(BaseModel):
+    id: int
+    title: Optional[str] = None
+    memory_id: Optional[int] = None
+    messages: List[Message] = Field(default_factory=list)
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationRead(BaseModel):
+    id: int
+    title: Optional[str] = None
+    messages: List[Message] = Field(default_factory=list)
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
