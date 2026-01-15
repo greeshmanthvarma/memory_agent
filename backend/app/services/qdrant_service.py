@@ -51,7 +51,7 @@ def search_points(collection_name: str, query_vector: list[float], limit: int = 
             limit=limit,
             with_payload=True,
         )
-        return [point.payload for point in search_result]
+        return [{**point.payload,"similarity":point.score, "id":point.id} for point in search_result]
     except Exception as e:
         raise Exception(f"Error searching points: {e}")
 
