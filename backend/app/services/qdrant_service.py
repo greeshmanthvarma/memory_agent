@@ -38,7 +38,8 @@ def build_point(embedding: list[float], metadata: dict, id: uuid.UUID = None):
 def add_point(collection_name: str, embedding: list[float], metadata: dict, id: uuid.UUID = None):
     try:
         point = build_point(embedding, metadata, id)
-        return qdrant_client.upsert(collection_name=collection_name,points=[point])
+        qdrant_client.upsert(collection_name=collection_name,points=[point])
+        return point
     except Exception as e:
         raise Exception(f"Error adding point: {e}")
 

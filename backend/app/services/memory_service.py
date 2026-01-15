@@ -25,16 +25,16 @@ def create_memory(memory: MemoryCreate,embedding: list[float],bypass_similarity_
         if len(similar_memories) > 0 and not bypass_similarity_check:
             return similar_memories[0]
         else:
-            memory = add_point(collection_name="memories", embedding=embedding, metadata=memory.model_dump())
-            db_create_memory(MemoryModel(
-                content=memory.content,
-                embedding_id=memory.embedding_id,
-                memory_type=memory.memory_type,
-                conversation_id=memory.conversation_id,
-                user_id=memory.user_id,
-                importance_score=memory.importance_score,
-                tags=memory.tags,
-            ))
-            return memory 
+          memory_point = add_point(collection_name="memories", embedding=embedding, metadata=memory.model_dump())
+          db_memory = db_create_memory(MemoryModel(
+            content=memory.content,
+            embedding_id=memory_point.id,
+            memory_type=memory.memory_type,
+            conversation_id=memory.conversation_id,
+            user_id=memory.user_id,
+            importance_score=memory.importance_score,
+            tags=memory.tags,
+          ))
+          return db_memory 
     except Exception as e:
         raise Exception(f"Error creating memory: {e}")

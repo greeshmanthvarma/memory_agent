@@ -12,11 +12,11 @@ def embed_text(text: str) -> list[float]:
         encoding = tiktoken.get_encoding("cl100k_base")
         tokens= encoding.encode(text)
         if len(tokens) > 1500:
-            raise ValueError("Text is too long. Maximum length is 1500 tokens.")
+            raise Exception("Text is too long. Maximum length is 1500 tokens.")
         embedding = openai_client.embeddings.create(
             input=text,
             model="text-embedding-3-small"
         )
         return embedding.data[0].embedding
     except Exception as e:
-        raise ValueError(f"Error embedding text: {e}")
+        raise Exception(f"Error embedding text: {e}")
