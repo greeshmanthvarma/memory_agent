@@ -29,6 +29,21 @@ app.add_middleware(
 qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# Database will be initialized on startup
+from app.database import engine, Base
+
+
+@app.on_event("startup")
+async def startup_event():
+    # Create database tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await engine.dispose()
+
 @app.get("/")
 async def root():
     """Root endpoint"""
