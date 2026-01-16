@@ -1,6 +1,5 @@
 from qdrant_client import QdrantClient
-from qdrant_client.http import models as rest
-from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList
+from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList, Filter, FieldCondition, FieldMatch
 import uuid
 from dotenv import load_dotenv
 
@@ -44,13 +43,26 @@ def add_point(collection_name: str, embedding: list[float], metadata: dict, id: 
         raise Exception(f"Error adding point: {e}")
 
 
-def search_points(collection_name: str, query_vector: list[float], limit: int = 10):
+def search_points(collection_name: str, query_vector: list[float], limit: int = 10,user_id: int = None):
     try:
+        query_filter = None
+        if user_id is not None:
+            query_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="user_id",
+                        match=FieldMatch(
+                            value=user_id
+                        )
+                    )
+                ]
+            )
         search_result = qdrant_client.search(
             collection_name=collection_name,
             query_vector=query_vector,
             limit=limit,
             with_payload=True,
+            query_filter=query_filter,
         )
         return [{**point.payload,"similarity":point.score, "id":point.id} for point in search_result]
     except Exception as e:

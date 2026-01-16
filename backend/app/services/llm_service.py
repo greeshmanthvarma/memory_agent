@@ -45,7 +45,7 @@ def _build_summary_prompt(messages: str) -> str:
 def summarize_conversation(messages: List[Message]) -> dict:
     try:
 
-        formatted_messages = "\n".join([f"{message.role}: {message.content}" for message in messages])
+        formatted_messages = "\n".join([f"role:{message.role}, content:{message.content}" for message in messages])
         prompt = _build_summary_prompt(formatted_messages)
 
 
@@ -62,3 +62,5 @@ def summarize_conversation(messages: List[Message]) -> dict:
             raise Exception(f"Error parsing JSON response: {e}")
     except Exception as e:
         raise Exception(f"Error summarizing conversation: {e}")
+
+
