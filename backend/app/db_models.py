@@ -22,6 +22,7 @@ class MemoryModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
+    summary_long = Column(Text, nullable=True)
     embedding_id = Column(uuid.UUID, nullable=False)
     memory_type = Column(SQLEnum(MemoryType), nullable=False)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)
