@@ -8,17 +8,15 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def summarize_conversation(messages: List[Message]) -> dict:
-    try:
-
-        formatted_messages = "\n".join([f"{message.role}: {message.content}" for message in messages])
-        prompt = f"""
+def _build_summary_prompt(messages: str) -> str:
+    """Build the prompt for summarizing a conversation"""
+    return f"""
         You are an assistant responsible for creating long-term memories from conversations.
 
         Your task is to extract durable, reusable information that may be useful in future conversations.
 
         Messages:
-        {formatted_messages}
+        {messages}
 
         Each message has a role : user or assistant and the content of the message. The messages list is in chronological order.
 
@@ -44,6 +42,12 @@ def summarize_conversation(messages: List[Message]) -> dict:
         }}
         """
 
+def summarize_conversation(messages: List[Message]) -> dict:
+    try:
+
+        formatted_messages = "\n".join([f"{message.role}: {message.content}" for message in messages])
+        prompt = _build_summary_prompt(formatted_messages)
+
 
         response = client.responses.create(
             model="gpt-4o-mini",
@@ -58,5 +62,3 @@ def summarize_conversation(messages: List[Message]) -> dict:
             raise Exception(f"Error parsing JSON response: {e}")
     except Exception as e:
         raise Exception(f"Error summarizing conversation: {e}")
-
-        
