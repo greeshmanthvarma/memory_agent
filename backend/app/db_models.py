@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 import enum
-
+import uuid
 from app.database import Base
 
 
@@ -22,7 +22,7 @@ class MemoryModel(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
-    embedding_id = Column(Integer, nullable=False)
+    embedding_id = Column(uuid.UUID, nullable=False)
     memory_type = Column(SQLEnum(MemoryType), nullable=False)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)
     user_id = Column(Integer, nullable=False, index=True)
@@ -66,3 +66,18 @@ class ConversationModel(Base):
     # Relationships
     memories = relationship("MemoryModel", back_populates="conversation", foreign_keys=[MemoryModel.conversation_id])
     messages = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan")
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email =Column(String, nullable=False, unique=True)
+    password =Column(String, nullable=True)
+    username =Column(String, nullable=False, unique=True)
+    collection_name =Column(String, nullable=False, unique=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    memories = relationship("MemoryModel", back_populates="user", foreign_keys=[MemoryModel.user_id])
+    conversations = relationship("ConversationModel", back_populates="user", foreign_keys=[ConversationModel.user_id])

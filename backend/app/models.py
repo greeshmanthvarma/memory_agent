@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import List, Literal, Optional
-
+import uuid
 from pydantic import BaseModel, Field
 
 
 class Memory(BaseModel):
     id: int
     content: str
-    embedding_id: int
+    embedding_id: uuid.UUID
     memory_type: Literal["explicit", "implicit"]
     conversation_id: Optional[int] = None
     user_id: int
@@ -22,7 +22,7 @@ class Memory(BaseModel):
 
 class MemoryCreate(BaseModel):
     content: str
-    embedding_id: int
+    embedding_id: uuid.UUID
     memory_type: Literal["explicit", "implicit"]
     conversation_id: Optional[int] = None
     user_id: int
@@ -32,7 +32,7 @@ class MemoryCreate(BaseModel):
 
 class MemoryUpdate(BaseModel):
     content: Optional[str] = None
-    embedding_id: Optional[int] = None
+    embedding_id: Optional[uuid.UUID] = None
     memory_type: Optional[Literal["explicit", "implicit"]] = None
     importance_score: Optional[float] = None
     tags: Optional[List[str]] = None
