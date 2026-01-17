@@ -6,10 +6,10 @@ from app.db_models import MemoryModel, MemoryType
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-def check_similar_memories(content: str, embedding: list[float], limit: int = 3):
+def check_similar_memories(content: str, embedding: list[float], limit: int = 3, user_id: int = None):
     try:
         similar_memories = []
-        memories = search_points(collection_name="memories", query_vector=embedding, limit=limit)
+        memories = search_points(collection_name="memories", query_vector=embedding, limit=limit, user_id=user_id)
         for memory in memories:
             if memory["similarity"] > 0.9:
                 if memory["content"] != content:
@@ -38,9 +38,9 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
         updated_at=db_memory.updated_at,
     )
 
-async def create_memory(memory: MemoryCreate,embedding: list[float],db: AsyncSession,bypass_similarity_check: bool = False):
+async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int,db: AsyncSession,bypass_similarity_check: bool = False):
     try:
-        similar_memories = check_similar_memories(memory.content,embedding)
+        similar_memories = check_similar_memories(memory.content,embedding,user_id=user_id)
         if len(similar_memories) > 0 and not bypass_similarity_check:
             similar_memory = similar_memories[0]
             db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],db)
@@ -62,9 +62,9 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],db: AsyncSes
     except Exception as e:
         raise Exception(f"Error creating memory: {e}")
 
-async def get_memory_by_query(query_vector: list[float], collection_name: str, db: AsyncSession) -> List[dict]:
+async def get_memory_by_query(query_vector: list[float], collection_name: str, user_id: int, db: AsyncSession) -> List[dict]:
     try:
-        queried_memories = search_points(collection_name=collection_name, query_vector=query_vector, limit=10)
+        queried_memories = search_points(collection_name=collection_name, query_vector=query_vector, limit=10, user_id=user_id)
         memories = []
         for memory in queried_memories:
             try:

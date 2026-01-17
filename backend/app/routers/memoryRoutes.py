@@ -14,20 +14,20 @@ memory_router = APIRouter(
 )
 
 @memory_router.post("/create")
-async def create_memory(memory: MemoryCreate,db: AsyncSession = Depends(get_db),bypass_similarity_check: bool = False) -> Memory:
+async def create_memory(memory: MemoryCreate,user_id: int,db: AsyncSession = Depends(get_db),bypass_similarity_check: bool = False) -> Memory:
     try:
         embedding = embed_text(memory.content)
-        return await create_memory_service(memory,embedding,db,bypass_similarity_check)
+        return await create_memory_service(memory,embedding,user_id,db,bypass_similarity_check)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @memory_router.get("/related")
-async def get_memory_by_query(query: str,collection_name: str,db: AsyncSession = Depends(get_db)) -> List[dict]:
+async def get_memory_by_query(query: str,collection_name: str,user_id: int,db: AsyncSession = Depends(get_db)) -> List[dict]:
     try:
         query_vector= embed_text(query)
-        memories = await get_memory_by_query_service(query_vector,collection_name,db)
+        memories = await get_memory_by_query_service(query_vector,collection_name,user_id,db)
         return memories
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

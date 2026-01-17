@@ -9,7 +9,7 @@ load_dotenv()
 
 qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
 
-def create_collection(name: str, vector_size: int):
+def create_collection(name: str = "memories", vector_size: int = 1536):
     try:
         if qdrant_client.collection_exists(collection_name=name):
             return qdrant_client.get_collection(collection_name=name)
