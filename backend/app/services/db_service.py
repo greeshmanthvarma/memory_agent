@@ -1,4 +1,4 @@
-from app.db_models import MemoryModel, UserModel
+from app.db_models import MemoryModel, MessageModel, UserModel, ConversationModel
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -44,3 +44,42 @@ async def db_get_memory_by_id(memory_id: int,db: AsyncSession):
         raise
     except Exception as e:
         raise Exception(f"Error getting memory by id {memory_id}: {e}")
+
+async def db_create_conversation(conversation: ConversationModel, db: AsyncSession):
+    try:
+        db.add(conversation)
+        await db.commit()
+        await db.refresh(conversation)
+        return conversation
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"Error creating conversation: {e}")
+
+async def db_create_message(message: MessageModel, db: AsyncSession):
+    try:
+        db.add(message)
+        await db.commit()
+        await db.refresh(message)
+        return message
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"Error creating message: {e}")
+
+async def db_get_conversation(conversation_id: int, user_id: int, db: AsyncSession):
+    try:
+        result = await db.execute(select(ConversationModel).filter(ConversationModel.id == conversation_id).filter(ConversationModel.user_id == user_id))
+        conversation = result.scalar_one_or_none()
+        if not conversation:
+            raise ValueError(f"Conversation with id {conversation_id} not found in the database")
+        return conversation
+    except ValueError:
+        raise
+    except Exception as e:
+        raise Exception(f"Error getting conversation by id {conversation_id}: {e}")
+
+async def db_get_conversation_messages(conversation_id: int, db: AsyncSession):
+    try:
+        result = await db.execute(select(MessageModel).filter(MessageModel.conversation_id == conversation_id).order_by(MessageModel.created_at))
+        return result.scalars().all()
+    except Exception as e:
+        raise Exception(f"Error getting conversation messages by id {conversation_id}: {e}")

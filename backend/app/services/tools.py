@@ -1,12 +1,11 @@
-from agents import FunctionTool
+
 from app.services.embedding_service import embed_text
 from app.services.memory_service import get_memory_by_query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
 
-def create_search_memories_tool(user_id: int, db: AsyncSession) -> FunctionTool:
+def create_search_memories_tool(user_id: int, db: AsyncSession):
     
-    @FunctionTool
     async def search_memories(query : str) -> str:
         """
         Search for relevant memories by semantic similarity.

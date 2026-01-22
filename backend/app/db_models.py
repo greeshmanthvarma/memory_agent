@@ -68,6 +68,8 @@ class ConversationModel(Base):
     memories = relationship("MemoryModel", back_populates="conversation", foreign_keys=[MemoryModel.conversation_id])
     messages = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan")
 
+
+
 class UserModel(Base):
     __tablename__ = "users"
 
