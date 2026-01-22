@@ -5,7 +5,8 @@ from qdrant_client import QdrantClient, models
 from pydantic import BaseModel
 from openai import OpenAI
 import os
-
+from app.routers.memoryRoutes import memory_router
+from app.routers.authRoutes import auth_router
 # Load environment variables from .env file
 load_dotenv()
 
@@ -25,6 +26,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(memory_router)
+app.include_router(auth_router)
 
 qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

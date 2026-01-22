@@ -64,3 +64,12 @@ class ConversationRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class UserRegister(BaseModel):
+    email: str
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    identifier: str
+    password: str
