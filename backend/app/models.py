@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class Memory(BaseModel):
     id: int
     content: str
+    summary_long: Optional[str] = None
     embedding_id: uuid.UUID
     memory_type: Literal["explicit", "implicit"]
     conversation_id: Optional[int] = None
@@ -22,6 +23,7 @@ class Memory(BaseModel):
 
 class MemoryCreate(BaseModel):
     content: str
+    summary_long: Optional[str] = None
     memory_type: Literal["explicit", "implicit"]
     conversation_id: Optional[int] = None
     importance_score: float = 0.0
@@ -75,3 +77,9 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     identifier: str
     password: str
+
+class SummarizeRequest(BaseModel):
+    messages: List[Message]
+    conversation_id: Optional[int] = None  
+    create_memory: bool = True
+    tags: List[str] = Field(default_factory=list)

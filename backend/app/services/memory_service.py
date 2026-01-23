@@ -25,6 +25,7 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
     return Memory(
         id=db_memory.id,
         content=db_memory.content,
+        summary_long=db_memory.summary_long,
         embedding_id=db_memory.embedding_id,
         memory_type=db_memory.memory_type.value,
         conversation_id=db_memory.conversation_id,
@@ -49,7 +50,7 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int
            
             conversation_id = memory.conversation_id if memory.conversation_id and memory.conversation_id != 0 else None
             
-            metadata = memory.model_dump()
+            metadata = memory.model_dump(exclude={"summary_long"})
             metadata["user_id"] = user_id
             metadata["conversation_id"] = conversation_id
             
@@ -57,6 +58,7 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int
             
             db_memory = await db_create_memory(MemoryModel(
                 content=memory.content,
+                summary_long=memory.summary_long,
                 embedding_id=memory_point.id,
                 memory_type=MemoryType(memory.memory_type),
                 conversation_id=conversation_id,

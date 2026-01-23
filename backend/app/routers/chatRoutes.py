@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from app.models import Message, MessageCreate, ConversationRead, ConversationCreate
-from app.services.llm_service import summarize_conversation,chat as chat_service
+from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate
+from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service
 from app.middleware.auth import get_current_user
 from app.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.memory_service import create_memory as create_memory_service
+from app.services.embedding_service import embed_text
 from typing import List
 from app.db_models import UserModel, MessageModel, ConversationModel
 from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service
@@ -86,6 +88,65 @@ async def create_conversation(user: UserModel = Depends(get_current_user), db: A
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating conversation: {str(e)}")
+
+@chat_router.post("/conversation/summarize")
+async def summarize_conversation( request: SummarizeRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+
+        if len(request.messages) == 0:
+            raise HTTPException(status_code=400, detail="No messages provided")
+
+        if request.conversation_id:
+            await db_get_conversation(request.conversation_id, user.id, db) #ensures the conversation exists and is owned by the user
+        
+        summary = summarize_conversation_service(request.messages)
+
+        if not summary or not summary.get("summary_short"):
+            if request.create_memory:
+                raise HTTPException(status_code=400, detail="No meaningful summary could be created")
+            
+            return JSONResponse({
+                "summary": None,
+                "message":"No memory could be extracted from this conversation",
+                "memory": None,
+                "memory_created": False,
+            })
+
+
+        memory = None
+
+        if request.create_memory:
+
+            embedding = embed_text(summary["summary_short"])
+            memory = MemoryCreate(
+                content=summary["summary_short"],
+                summary_long=summary["summary_long"],
+                memory_type="implicit",
+                conversation_id=request.conversation_id,
+                tags=request.tags,
+            )
+            created_memory = await create_memory_service(memory,embedding,user.id,user.collection_name,db)
+
+
+            return JSONResponse({
+                "summary": summary,
+                "message":"Memory created successfully",
+                "memory": created_memory.model_dump(mode='json'),
+                "memory_created": True,
+            })
+        else:
+            return JSONResponse({
+                "summary": summary,
+                "message":"Memory not created",
+                "memory": None,
+                "memory_created": False,
+            })
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error summarizing conversation: {str(e)}")
 
 @chat_router.get("/conversation/{conversation_id}/messages")
 async def get_chat_history(conversation_id: int, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

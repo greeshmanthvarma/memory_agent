@@ -55,10 +55,12 @@ def summarize_conversation(messages: List[Message]) -> dict:
 
         response = client.responses.create(
             model="gpt-4o-mini",
-            input={
+            input=[
+                {
                 "role":"developer",
                 "content":prompt
-            }
+                }
+            ]
         )
         try:
             return json.loads(response.output_text)
