@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, JSONResponse, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Cookie
+from fastapi.responses import JSONResponse
 from app.db_models import UserModel
 from app.models import UserRegister, UserLogin
 from app.database import get_db

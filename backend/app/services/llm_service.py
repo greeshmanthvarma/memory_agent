@@ -2,11 +2,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 from typing import List, Dict
-from app.models import Conversation, Message
+from app.models import Message
 from app.services.tools import create_search_memories_tool
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 import tiktoken
+from app.db_models import UserModel
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -110,9 +111,9 @@ def compact_conversation(messages: List[Message]) -> List[Dict]:
     except Exception as e:
         raise Exception(f"Error compacting conversation: {e}")
 
-async def chat(user_id: int, db: AsyncSession,user_message: str,messages: List[Message]) -> str:
+async def chat(user: UserModel, db: AsyncSession,user_message: str,messages: List[Message]) -> str:
     try:
-        search_memories_tool = create_search_memories_tool(user_id, db)
+        search_memories_tool = create_search_memories_tool(db, user)
         token_count = count_conversation_tokens(messages)
         if token_count > 80000:
             compacted_messages = compact_conversation(messages)
@@ -177,4 +178,4 @@ async def chat(user_id: int, db: AsyncSession,user_message: str,messages: List[M
             final_response = response
         return final_response.output_text
     except Exception as e:
-        raise Exception(f"Error chatting with agent: {e}")
+        raise Exception(f"Error formulating a response: {e}")

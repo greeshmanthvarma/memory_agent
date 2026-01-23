@@ -1,5 +1,5 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList, Filter, FieldCondition, FieldMatch
+from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList, Filter, FieldCondition, MatchValue
 import uuid
 from dotenv import load_dotenv
 
@@ -51,9 +51,7 @@ def search_points(collection_name: str, query_vector: list[float], limit: int = 
                 must=[
                     FieldCondition(
                         key="user_id",
-                        match=FieldMatch(
-                            value=user_id
-                        )
+                        match=MatchValue(value=user_id)
                     )
                 ]
             )

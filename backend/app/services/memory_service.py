@@ -6,10 +6,10 @@ from app.db_models import MemoryModel, MemoryType
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-def check_similar_memories(content: str, embedding: list[float], limit: int = 3, user_id: int = None):
+def check_similar_memories(content: str, embedding: list[float], user_id: int, collection_name: str, limit: int = 3):
     try:
         similar_memories = []
-        memories = search_points(collection_name="memories", query_vector=embedding, limit=limit, user_id=user_id)
+        memories = search_points(collection_name=collection_name, query_vector=embedding, limit=limit, user_id=user_id)
         for memory in memories:
             if memory["similarity"] > 0.9:
                 if memory["content"] != content:
@@ -38,15 +38,15 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
         updated_at=db_memory.updated_at,
     )
 
-async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int,db: AsyncSession,bypass_similarity_check: bool = False):
+async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int,collection_name: str,db: AsyncSession,bypass_similarity_check: bool = False):
     try:
-        similar_memories = check_similar_memories(memory.content,embedding,user_id=user_id)
+        similar_memories = check_similar_memories(memory.content,embedding,user_id=user_id,collection_name=collection_name)
         if len(similar_memories) > 0 and not bypass_similarity_check:
             similar_memory = similar_memories[0]
-            db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],db)
+            db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],user_id,db)
             return db_memory_to_memory(db_similar_memory)
         else:
-          memory_point = add_point(collection_name="memories", embedding=embedding, metadata=memory.model_dump())
+          memory_point = add_point(collection_name=collection_name, embedding=embedding, metadata=memory.model_dump())
           db_memory = await db_create_memory(MemoryModel(
             content=memory.content,
             embedding_id=memory_point.id,
@@ -68,7 +68,7 @@ async def get_memory_by_query(query_vector: list[float], collection_name: str, u
         memories = []
         for memory in queried_memories:
             try:
-                db_memory = await db_get_memory_by_embedding_id(memory["id"],db)
+                db_memory = await db_get_memory_by_embedding_id(memory["id"],user_id,db)
                 memories.append({"memory": db_memory_to_memory(db_memory), "similarity": memory["similarity"]})
             except ValueError:
                 continue

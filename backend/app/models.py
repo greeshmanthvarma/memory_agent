@@ -45,8 +45,12 @@ class Message(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class MessageCreate(BaseModel):
+    content: str
+    role: Literal["user", "assistant"]
+    conversation_id: Optional[int] = None
 
-class Conversation(BaseModel):
+class ConversationRead(BaseModel):
     id: int
     title: Optional[str] = None
     memory_id: Optional[int] = None
@@ -56,7 +60,7 @@ class Conversation(BaseModel):
     updated_at: datetime
 
 
-class ConversationRead(BaseModel):
+class ConversationCreate(BaseModel):
     id: int
     title: Optional[str] = None
     messages: List[Message] = Field(default_factory=list)

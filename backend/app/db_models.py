@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, ARRAY, Text, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -23,10 +24,10 @@ class MemoryModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
     summary_long = Column(Text, nullable=True)
-    embedding_id = Column(uuid.UUID, nullable=False)
+    embedding_id = Column(UUID(as_uuid=True), nullable=False)
     memory_type = Column(SQLEnum(MemoryType), nullable=False)
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     importance_score = Column(Float, default=0.0)
     tags = Column(ARRAY(String), default=list)
     related_memories = Column(ARRAY(Integer), default=list)
@@ -36,8 +37,8 @@ class MemoryModel(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
-    conversation = relationship("ConversationModel", back_populates="memories")
-    messages = relationship("MessageModel", back_populates="conversation")
+    conversation = relationship("ConversationModel", back_populates="memories", foreign_keys=[conversation_id])
+    user = relationship("UserModel", back_populates="memories", foreign_keys=[user_id])
 
 
 class MessageModel(Base):
@@ -60,13 +61,14 @@ class ConversationModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=True)
     memory_id = Column(Integer, ForeignKey("memories.id"), nullable=True)
-    user_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     memories = relationship("MemoryModel", back_populates="conversation", foreign_keys=[MemoryModel.conversation_id])
     messages = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan")
+    user = relationship("UserModel", back_populates="conversations", foreign_keys=[user_id])
 
 
 

@@ -13,9 +13,9 @@ async def db_create_memory(memory: MemoryModel,db: AsyncSession):
         await db.rollback()
         raise Exception(f"Error creating memory: {e}")
 
-async def db_get_memory_by_embedding_id(embedding_id: uuid.UUID,db: AsyncSession):
+async def db_get_memory_by_embedding_id(embedding_id: uuid.UUID,user_id: int,db: AsyncSession):
     try:
-        result = await db.execute(select(MemoryModel).filter(MemoryModel.embedding_id == embedding_id))
+        result = await db.execute(select(MemoryModel).filter(MemoryModel.embedding_id == embedding_id).filter(MemoryModel.user_id == user_id))
         memory = result.scalar_one_or_none()
         if not memory:
             raise ValueError(f"Memory with embedding id {embedding_id} not found in the database")
@@ -27,15 +27,15 @@ async def db_get_memory_by_embedding_id(embedding_id: uuid.UUID,db: AsyncSession
 
 async def db_get_all_memories(user_id: int,db: AsyncSession):
     try:
-        result = await db.execute(select(MemoryModel).filter(MemoryModel.user_id == user_id))
+        result = await db.execute(select(MemoryModel).filter(MemoryModel.user_id == user_id).order_by(MemoryModel.created_at.desc()))
         memories = result.scalars().all()
         return memories
     except Exception as e:
         raise Exception(f"Error getting all memories for user {user_id}: {e}")
 
-async def db_get_memory_by_id(memory_id: int,db: AsyncSession):
+async def db_get_memory_by_id(memory_id: int,user_id: int,db: AsyncSession):
     try:
-        result = await db.execute(select(MemoryModel).filter(MemoryModel.id == memory_id))
+        result = await db.execute(select(MemoryModel).filter(MemoryModel.id == memory_id).filter(MemoryModel.user_id == user_id))
         memory = result.scalar_one_or_none()
         if not memory:
             raise ValueError(f"Memory with id {memory_id} not found in the database")
@@ -83,3 +83,11 @@ async def db_get_conversation_messages(conversation_id: int, db: AsyncSession):
         return result.scalars().all()
     except Exception as e:
         raise Exception(f"Error getting conversation messages by id {conversation_id}: {e}")
+
+async def db_get_all_conversations(user_id: int, db: AsyncSession):
+    try:
+        result = await db.execute(select(ConversationModel).filter(ConversationModel.user_id == user_id).order_by(ConversationModel.updated_at.desc()))
+        conversations = result.scalars().all()
+        return conversations
+    except Exception as e:
+        raise Exception(f"Error getting all conversations for user {user_id}: {e}")
