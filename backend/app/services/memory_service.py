@@ -46,17 +46,25 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int
             db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],user_id,db)
             return db_memory_to_memory(db_similar_memory)
         else:
-          memory_point = add_point(collection_name=collection_name, embedding=embedding, metadata=memory.model_dump())
-          db_memory = await db_create_memory(MemoryModel(
-            content=memory.content,
-            embedding_id=memory_point.id,
-            memory_type=MemoryType(memory.memory_type),
-            conversation_id=memory.conversation_id,
-            user_id=memory.user_id,
-            importance_score=memory.importance_score,
-            tags=memory.tags,
-          ),db)
-          return db_memory_to_memory(db_memory)
+           
+            conversation_id = memory.conversation_id if memory.conversation_id and memory.conversation_id != 0 else None
+            
+            metadata = memory.model_dump()
+            metadata["user_id"] = user_id
+            metadata["conversation_id"] = conversation_id
+            
+            memory_point = add_point(collection_name=collection_name, embedding=embedding, metadata=metadata)
+            
+            db_memory = await db_create_memory(MemoryModel(
+                content=memory.content,
+                embedding_id=memory_point.id,
+                memory_type=MemoryType(memory.memory_type),
+                conversation_id=conversation_id,
+                user_id=user_id,
+                importance_score=memory.importance_score,
+                tags=memory.tags,
+            ), db)
+            return db_memory_to_memory(db_memory)
     except ValueError:
         raise
     except Exception as e:

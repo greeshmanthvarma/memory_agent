@@ -126,13 +126,14 @@ async def chat(user: UserModel, db: AsyncSession,user_message: str,messages: Lis
                 "type": "function",
                 "name": "search_memories",
                 "description": "Search for relevant memories by semantic similarity.",
-                "strict":"true",
+                "strict": True,
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {"type": "string", "description": "The search query to find relevant memories"}
                     },
-                    "required": ["query"]
+                    "required": ["query"],
+                    "additionalProperties": False
                 }
             }
         ]
@@ -156,12 +157,21 @@ async def chat(user: UserModel, db: AsyncSession,user_message: str,messages: Lis
             if tool_call.type != "function_call":
                 continue
 
-            tool_call_made= True
+            tool_call_made = True
             if isinstance(tool_call.arguments, str):
                 args = json.loads(tool_call.arguments)
+                arguments_str = tool_call.arguments
             else:
                 args = tool_call.arguments
-
+                arguments_str = json.dumps(args)
+            
+            input_messages.append({
+                "type": "function_call",
+                "call_id": tool_call.call_id,
+                "name": tool_call.name,
+                "arguments": arguments_str
+            })
+            
             result = await search_memories_tool(args["query"])
             input_messages.append({
                 "type": "function_call_output",

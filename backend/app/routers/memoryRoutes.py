@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.database import get_db
 from app.models import MemoryCreate, Memory
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,12 @@ memory_router = APIRouter(
 )
 
 @memory_router.post("/create")
-async def create_memory(memory: MemoryCreate,user: UserModel=Depends(get_current_user),db: AsyncSession = Depends(get_db),bypass_similarity_check: bool = False) -> Memory:
+async def create_memory(
+    memory: MemoryCreate,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    bypass_similarity_check: bool = Query(False, description="Skip similarity check for duplicate memories")
+) -> Memory:
     try:
         embedding = embed_text(memory.content)
         return await create_memory_service(memory,embedding,user.id,user.collection_name,db,bypass_similarity_check)
@@ -26,7 +31,11 @@ async def create_memory(memory: MemoryCreate,user: UserModel=Depends(get_current
         raise HTTPException(status_code=500, detail=str(e))
 
 @memory_router.get("/related")
-async def get_memory_by_query(query: str,user: UserModel=Depends(get_current_user),db: AsyncSession = Depends(get_db)) -> List[dict]:
+async def get_memory_by_query(
+    query: str = Query(..., description="Search query to find related memories"),
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> List[dict]:
     try:
         query_vector= embed_text(query)
         memories = await get_memory_by_query_service(query_vector,user.collection_name,user.id,db)
@@ -36,7 +45,10 @@ async def get_memory_by_query(query: str,user: UserModel=Depends(get_current_use
 
 
 @memory_router.get("/")
-async def get_all_memories(user: UserModel=Depends(get_current_user),db: AsyncSession = Depends(get_db)) -> List[Memory]:
+async def get_all_memories(
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> List[Memory]:
     try:
         memories = await db_get_all_memories_service(user.id,db)
         return [db_memory_to_memory(memory) for memory in memories]
@@ -44,7 +56,11 @@ async def get_all_memories(user: UserModel=Depends(get_current_user),db: AsyncSe
         raise HTTPException(status_code=500, detail=str(e))
 
 @memory_router.get("/{memory_id}")
-async def get_memory_by_id(memory_id: int,user: UserModel=Depends(get_current_user),db: AsyncSession = Depends(get_db)) -> Memory:
+async def get_memory_by_id(
+    memory_id: int,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Memory:
     try:
         memory = await db_get_memory_by_id_service(memory_id,user.id,db)
         return db_memory_to_memory(memory)

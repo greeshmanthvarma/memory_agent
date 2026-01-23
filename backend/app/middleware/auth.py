@@ -33,6 +33,11 @@ async def get_current_user(token: str = Cookie(None), db: AsyncSession = Depends
     """
     Get current user from JWT token in cookie (for HTTP endpoints).
     """
-    if db is None:
-        raise HTTPException(status_code=500, detail="Database dependency not injected")
-    return get_user_from_token(token, db)
+    try:
+        if db is None:
+            raise HTTPException(status_code=500, detail="Database dependency not injected")
+        return await get_user_from_token(token, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication error: {str(e)}")

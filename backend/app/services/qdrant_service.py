@@ -55,14 +55,14 @@ def search_points(collection_name: str, query_vector: list[float], limit: int = 
                     )
                 ]
             )
-        search_result = qdrant_client.search(
+        search_result = qdrant_client.query_points(
             collection_name=collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             limit=limit,
             with_payload=True,
             query_filter=query_filter,
         )
-        return [{**point.payload,"similarity":point.score, "id":point.id} for point in search_result]
+        return [{**point.payload,"similarity":point.score, "id":point.id} for point in search_result.points]
     except Exception as e:
         raise Exception(f"Error searching points: {e}")
 

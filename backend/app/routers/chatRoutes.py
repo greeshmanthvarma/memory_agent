@@ -81,7 +81,7 @@ async def create_conversation(user: UserModel = Depends(get_current_user), db: A
             created_at=conversation_response.created_at,
             updated_at=conversation_response.updated_at
         )
-        return JSONResponse({"conversation": conversation.model_dump()})
+        return JSONResponse({"conversation": conversation.model_dump(mode='json')})
     except HTTPException:
         raise
     except Exception as e:
@@ -101,7 +101,7 @@ async def get_chat_history(conversation_id: int, user: UserModel = Depends(get_c
                 updated_at=m.updated_at
             ) for m in messages
         ]
-        return JSONResponse({"messages": [m.model_dump() for m in messages_list]})
+        return JSONResponse({"messages": [m.model_dump(mode='json') for m in messages_list]})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -120,7 +120,7 @@ async def get_conversation(conversation_id: int, user: UserModel = Depends(get_c
             created_at=conversation.created_at,
             updated_at=conversation.updated_at
         )
-        return JSONResponse({"conversation": conversation_read.model_dump()})
+        return JSONResponse({"conversation": conversation_read.model_dump(mode='json')})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -141,7 +141,7 @@ async def get_all_conversations(user: UserModel = Depends(get_current_user), db:
                 updated_at=c.updated_at
             ) for c in conversations
         ]
-        return JSONResponse({"conversations": [c.model_dump() for c in conversations_list]})
+        return JSONResponse({"conversations": [c.model_dump(mode='json') for c in conversations_list]})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

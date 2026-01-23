@@ -22,10 +22,8 @@ class Memory(BaseModel):
 
 class MemoryCreate(BaseModel):
     content: str
-    embedding_id: uuid.UUID
     memory_type: Literal["explicit", "implicit"]
     conversation_id: Optional[int] = None
-    user_id: int
     importance_score: float = 0.0
     tags: List[str] = Field(default_factory=list)
 
