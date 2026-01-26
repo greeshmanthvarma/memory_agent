@@ -12,7 +12,7 @@ from app.db_models import UserModel, MessageModel, ConversationModel
 from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service
 
 chat_router = APIRouter(
-    prefix="/chat",
+    prefix="/api/chat",
     tags=["chat"],
 )
 
@@ -168,25 +168,6 @@ async def get_chat_history(conversation_id: int, user: UserModel = Depends(get_c
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@chat_router.get("/conversation/{conversation_id}")
-async def get_conversation(conversation_id: int, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    try:
-        conversation = await db_get_conversation(conversation_id, user.id, db)
-        conversation_read = ConversationRead(
-            id=conversation.id,
-            title=conversation.title or None,
-            memory_id=conversation.memory_id or None,
-            messages=[],
-            user_id=conversation.user_id,
-            created_at=conversation.created_at,
-            updated_at=conversation.updated_at
-        )
-        return JSONResponse({"conversation": conversation_read.model_dump(mode='json')})
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @chat_router.get("/conversation/all")
 async def get_all_conversations(user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
@@ -203,6 +184,25 @@ async def get_all_conversations(user: UserModel = Depends(get_current_user), db:
             ) for c in conversations
         ]
         return JSONResponse({"conversations": [c.model_dump(mode='json') for c in conversations_list]})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@chat_router.get("/conversation/{conversation_id}")
+async def get_conversation(conversation_id: int, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        conversation = await db_get_conversation(conversation_id, user.id, db)
+        conversation_read = ConversationRead(
+            id=conversation.id,
+            title=conversation.title or None,
+            memory_id=conversation.memory_id or None,
+            messages=[],
+            user_id=conversation.user_id,
+            created_at=conversation.created_at,
+            updated_at=conversation.updated_at
+        )
+        return JSONResponse({"conversation": conversation_read.model_dump(mode='json')})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

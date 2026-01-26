@@ -11,7 +11,7 @@ from app.db_models import UserModel
 from app.middleware.auth import get_current_user
 
 memory_router = APIRouter(
-    prefix="/memory",
+    prefix="/api/memory",
     tags=["memory"],
 )
 

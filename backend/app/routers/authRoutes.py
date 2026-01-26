@@ -13,7 +13,7 @@ import jwt
 import os
 
 auth_router = APIRouter(
-    prefix="/auth",
+    prefix="/api/auth",
     tags=["auth"],
 )
 

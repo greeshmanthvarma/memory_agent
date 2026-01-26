@@ -29,13 +29,15 @@ async def get_user_from_token(token: str, db: AsyncSession):
         raise HTTPException(status_code=401, detail=f"Unauthorized: {str(e)}")
 
 
-async def get_current_user(token: str = Cookie(None), db: AsyncSession = Depends(get_db)):
+async def get_current_user(token: str = Cookie(default=None), db: AsyncSession = Depends(get_db)):
     """
     Get current user from JWT token in cookie (for HTTP endpoints).
     """
     try:
         if db is None:
             raise HTTPException(status_code=500, detail="Database dependency not injected")
+        if not token:
+            raise HTTPException(status_code=401, detail="No authentication token provided")
         return await get_user_from_token(token, db)
     except HTTPException:
         raise

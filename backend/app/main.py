@@ -17,8 +17,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS - allow origins from environment variable or default to "*"
-cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+# Configure CORS - allow origins from environment variable or default to localhost:5173 (Vite dev server)
+cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:5173")
+cors_origins = [origin.strip() for origin in cors_origins_env.split(",")]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

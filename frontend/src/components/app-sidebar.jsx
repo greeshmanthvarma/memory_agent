@@ -1,6 +1,7 @@
-import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen} from "lucide-react"
-import { useState } from "react"
-
+import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen, User2, ChevronUp} from "lucide-react"
+import { useState,useEffect } from "react"
+import { Link, useLocation } from "react-router-dom"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -17,17 +18,41 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  SidebarFooter,
 } from "@/components/ui/sidebar"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { useAuth } from '@/AuthContext'
 
 export default function AppSidebar() {
   const { state } = useSidebar()
+  const { user,loading,setUser } = useAuth()
+  const [conversations,setConversations]=useState([])
   const [memoriesOpen, setMemoriesOpen] = useState(true)
-  
+
+  useEffect(()=>{
+    async function fetchConversations(){
+      if(!user || loading) return
+      try{
+        const response=await fetch('/api/chat/conversation/all',{
+          credentials:'include'
+        })
+        if(response.ok){
+          const data=await response.json()
+          setConversations(data.conversations || [])
+        }else{
+          const errorData = await response.json().catch(() => ({}))
+          console.error('Failed to fetch conversations:', response.status, errorData)
+        }
+      }catch(error){
+        console.error('Error fetching conversations:', error)
+      }
+    }
+    fetchConversations()
+  },[user, loading])
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className={`flex-row items-center p-4 ${state === "expanded" ? "justify-between" : "justify-center"}`}>
@@ -43,10 +68,10 @@ export default function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="#">
+                  <Link to="/">
                     <SquarePen />
                     <span>New Chat</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               
@@ -67,10 +92,10 @@ export default function AppSidebar() {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild>
-                          <a href="#">
+                          <Link to="/memories">
                             <BrainCog/>
                             <span>Memory Space</span>
-                          </a>
+                          </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
@@ -103,19 +128,45 @@ export default function AppSidebar() {
             <SidebarGroupLabel>Your Chats</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <a href="#">
-                      <span>Chat 1</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {conversations.map((conversation)=>(
+                  <SidebarMenuItem key={conversation.id}>
+                    <SidebarMenuButton asChild>
+                      <Link to={`/${conversation.id}`}>
+                        <span>{conversation.title || `Chat ${conversation.id}`}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
       </SidebarContent>
-      
+      <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton>
+                    <User2 /> {user.username}
+                    <ChevronUp className="ml-auto" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="top"
+                  className="w-[--radix-popper-anchor-width]"
+                >
+                  <DropdownMenuItem>
+                    <span>Account</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )
