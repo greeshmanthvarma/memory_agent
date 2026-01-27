@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate
+from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest
 from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service
 from app.middleware.auth import get_current_user
 from app.database import get_db
@@ -17,15 +17,15 @@ chat_router = APIRouter(
 )
 
 @chat_router.post("/")
-async def chat(user_message: str, conversation_id: int, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
-        await db_get_conversation(conversation_id, user.id, db) #ensures the conversation exists and is owned by the user
-        existing_messages = await db_get_conversation_messages(conversation_id, db)
+        await db_get_conversation(request.conversation_id, user.id, db)
+        existing_messages = await db_get_conversation_messages(request.conversation_id, db)
 
         user_query = MessageModel(
-            content=user_message,
+            content=request.user_message,
             role = "user",
-            conversation_id=conversation_id
+            conversation_id=request.conversation_id
         )
 
         user_query_response = await db_create_message(user_query, db)
@@ -48,14 +48,14 @@ async def chat(user_message: str, conversation_id: int, user: UserModel = Depend
             )
         ]
         
-        response = await chat_service(user=user, db=db, user_message=user_message, messages=messages_list)
+        response = await chat_service(user=user, db=db, user_message=request.user_message, messages=messages_list)
         if not response:
             raise HTTPException(status_code=500, detail="Failed to formulate a response")
         
         assistant_response = MessageModel(
             content=response,
             role="assistant",
-            conversation_id=conversation_id
+            conversation_id=request.conversation_id
         )
         await db_create_message(assistant_response, db)
         return JSONResponse({"response": response})

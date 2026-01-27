@@ -68,9 +68,11 @@ export default function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/">
+                  <Link to="/chat">
                     <SquarePen />
-                    <span>New Chat</span>
+                    <span>
+                       New Chat
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -131,7 +133,7 @@ export default function AppSidebar() {
                 {conversations.map((conversation)=>(
                   <SidebarMenuItem key={conversation.id}>
                     <SidebarMenuButton asChild>
-                      <Link to={`/${conversation.id}`}>
+                      <Link to={`/chat/${conversation.id}`}>
                         <span>{conversation.title || `Chat ${conversation.id}`}</span>
                       </Link>
                     </SidebarMenuButton>

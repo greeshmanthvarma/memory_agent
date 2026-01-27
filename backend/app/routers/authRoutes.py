@@ -60,7 +60,7 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
             value=jwt_token,
             httponly=True,
             secure=False,
-            max_age=3600,
+            max_age=86400,
             samesite="lax"
         )
         
@@ -114,7 +114,7 @@ async def login(user:UserLogin, db: AsyncSession = Depends(get_db)):
             value=jwt_token,
             httponly=True,
             secure=False,
-            max_age=3600,
+            max_age=86400,
             samesite="lax"
         )
         

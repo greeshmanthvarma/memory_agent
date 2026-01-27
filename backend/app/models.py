@@ -78,6 +78,10 @@ class UserLogin(BaseModel):
     identifier: str
     password: str
 
+class ChatRequest(BaseModel):
+    user_message: str
+    conversation_id: int
+
 class SummarizeRequest(BaseModel):
     messages: List[Message]
     conversation_id: Optional[int] = None  

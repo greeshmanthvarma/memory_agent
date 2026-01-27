@@ -3,7 +3,7 @@ import { ArrowUp, Sun, Moon } from "lucide-react"
 import { useTheme } from '@/ThemeContext'
 import { useState,useEffect } from 'react'
 import { useAuth } from '@/AuthContext'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {Toaster} from "@/components/ui/sonner"
 import {toast} from "sonner"
 
@@ -18,28 +18,33 @@ export default function ChatPage() {
 
 function ChatPageContent() {
   const { theme, toggleTheme } = useTheme()
-  const [conversation,setConversation]=useState([])
+  const [conversation,setConversation]=useState(null)
   const [messages,setMessages]=useState([])
   const [error,setError]=useState(null)
+  const [awaitingResponse,setAwaitingResponse]=useState(false)
+  const [inputValue, setInputValue] = useState('')
   const { user } = useAuth()
   const { conversationId } = useParams()
+  const navigate = useNavigate()
   
   useEffect(()=>{
     async function initializeConversation(){
-    if(user){
-      if(conversationId){
-        await fetchConversation(conversationId)
-        await fetchMessages(conversationId)
-        }
-        else{
-          await createConversation()
-        }
-      }else{
+      if(!user){
         setError('Please login to continue')
+        return
       }
+
+      if(!conversationId){
+        setConversation(null)
+        setMessages([])
+        return
+      }
+
+      await fetchConversation(conversationId)
+      await fetchMessages(conversationId)
     }
     initializeConversation()
-  },[user,conversationId])
+  },[user, conversationId])
   
   useEffect(()=>{
     if(error){
@@ -96,6 +101,7 @@ function ChatPageContent() {
       if(response.ok){
         const data=await response.json()
         setConversation(data.conversation)
+        return data.conversation.id
       }
       else{
         throw new Error('Failed to create conversation')
@@ -104,6 +110,55 @@ function ChatPageContent() {
       catch(error){
         console.error('Error creating conversation:', error)
         setError('Failed to create conversation')
+        return null
+      }
+    }
+
+    async function handleSendMessage(){
+      if(!inputValue.trim()) return
+      
+      let currentConversationId = conversationId || (conversation?.id)
+      
+      if(!currentConversationId){
+        currentConversationId = await createConversation()
+        if(!currentConversationId){
+          setError('Failed to create conversation')
+          return
+        }
+        navigate(`/chat/${currentConversationId}`, { replace: true })
+      }
+
+      const message = inputValue.trim()
+      setInputValue('')
+      
+      const optimisticUserMessage = {content: message, role: 'user', id: `temp-${Date.now()}`}
+      setMessages(prev => [...prev, optimisticUserMessage])
+      setAwaitingResponse(true)
+      try{
+        const response = await fetch('/api/chat',{
+          method:'POST',
+          credentials:'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_message: message,
+            conversation_id: currentConversationId
+          })
+        })
+        if(response.ok){
+          setAwaitingResponse(false)
+          await fetchMessages(currentConversationId)
+        }
+        else{
+          throw new Error('Failed to send message')
+        }
+      }
+      catch(error){
+        console.error('Error sending message:', error)
+        setError('Failed to send message')
+        setMessages(prev => prev.filter(msg => msg.id !== optimisticUserMessage.id))
+        setAwaitingResponse(false)
       }
     }
   return (
@@ -121,12 +176,15 @@ function ChatPageContent() {
             )}
           </button>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto mx-24 my-12">
+        {awaitingResponse && (
+          <div className="flex justify-center items-center mb-4">
+            <div className="animate-pulse w-8 h-8 bg-primary/10 rounded-full"></div>
+          </div>
+        )}
         {messages.map((message)=>(
-          <div key={message.id} className="flex flex-col p-4 border-b border-gray-200 dark:border-gray-800">
-            <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={message.id} className={`flex w-fit p-4 rounded-full ${message.role === 'user' ? 'bg-primary/10' : 'none'} mb-4 ${message.role === 'user' ? 'justify-self-end' : 'justify-self-start'}`}>
             <div className="text-base">{message.content}</div>
-            </div>
           </div>
         ))}
       </div>
@@ -137,9 +195,21 @@ function ChatPageContent() {
             <InputGroupTextarea 
               placeholder="Ask Away!" 
               className="overflow-y-auto max-h-[200px] min-h-[44px]"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSendMessage()
+                }
+              }}
             />
             <InputGroupAddon align="inline-end">
-              <InputGroupButton variant="transparent" className="cursor-pointer hover:bg-transparent hover:text-primary">
+              <InputGroupButton 
+                variant="transparent" 
+                className="cursor-pointer hover:bg-transparent hover:text-primary"
+                onClick={handleSendMessage}
+              >
                 <ArrowUp/>
               </InputGroupButton>
             </InputGroupAddon>

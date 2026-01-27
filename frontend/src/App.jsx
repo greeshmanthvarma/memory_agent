@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from '@/ThemeContext'
 import Layout from '@/components/Layout'
 import MemorySpaceLayout from '@/components/MemorySpaceLayout'
@@ -14,8 +14,9 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Layout />}>
-            <Route index element={<ChatPage />} />
-            <Route path="/:conversationId" element={<ChatPage />} />
+            <Route path="chat" element={<ChatPage />} />
+            <Route path="chat/:conversationId" element={<ChatPage />} />
+            <Route index element={<Navigate to="/chat" replace />} />
           </Route>
           <Route path="/memories" element={<MemorySpaceLayout><MemorySpacePage /></MemorySpaceLayout>} />
         </Routes>
