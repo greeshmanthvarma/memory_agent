@@ -6,11 +6,14 @@ import ChatPage from '@/pages/ChatPage'
 import MemorySpacePage from '@/pages/MemorySpacePage'
 import { AuthProvider } from '@/AuthContext'
 import LoginPage from '@/pages/LoginPage'
+import { Toaster } from '@/components/ui/sonner'
+
 export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
       <AuthProvider>
+        <Toaster />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Layout />}>

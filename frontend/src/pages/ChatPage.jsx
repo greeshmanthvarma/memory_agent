@@ -4,19 +4,10 @@ import { useTheme } from '@/ThemeContext'
 import { useState,useEffect } from 'react'
 import { useAuth } from '@/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
-import {Toaster} from "@/components/ui/sonner"
 import {toast} from "sonner"
 
-export default function ChatPage() {
-  return (
-    <>
-      <Toaster />
-      <ChatPageContent />
-    </>
-  )
-}
 
-function ChatPageContent() {
+export default function ChatPage() {
   const { theme, toggleTheme } = useTheme()
   const [conversation,setConversation]=useState(null)
   const [messages,setMessages]=useState([])

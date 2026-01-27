@@ -26,12 +26,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { useAuth } from '@/AuthContext'
+import LogMemoryDialog from '@/components/LogMemoryDialog'
 
 export default function AppSidebar() {
   const { state } = useSidebar()
   const { user,loading,setUser } = useAuth()
   const [conversations,setConversations]=useState([])
   const [memoriesOpen, setMemoriesOpen] = useState(true)
+  const [logMemoryOpen, setLogMemoryOpen] = useState(false)
 
   useEffect(()=>{
     async function fetchConversations(){
@@ -101,11 +103,9 @@ export default function AppSidebar() {
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild>
-                          <a href="#">
-                            <NotebookPen/>
-                            <span>Log Memory</span>
-                          </a>
+                        <SidebarMenuSubButton onClick={() => setLogMemoryOpen(true)}>
+                          <NotebookPen/>
+                          <span>Log Memory</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>
@@ -170,6 +170,7 @@ export default function AppSidebar() {
           </SidebarMenu>
         </SidebarFooter>
       <SidebarRail />
+      <LogMemoryDialog open={logMemoryOpen} onOpenChange={setLogMemoryOpen} />
     </Sidebar>
   )
 }
