@@ -5,7 +5,7 @@ import { useState,useEffect } from 'react'
 import { useAuth } from '@/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {toast} from "sonner"
-
+import ReactMarkdown from "react-markdown"
 
 export default function ChatPage() {
   const { theme, toggleTheme } = useTheme()
@@ -167,17 +167,42 @@ export default function ChatPage() {
             )}
           </button>
       </div>
-      <div className="flex-1 overflow-y-auto mx-24 my-12">
-        {awaitingResponse && (
-          <div className="flex justify-center items-center mb-4">
-            <div className="animate-pulse w-8 h-8 bg-primary/10 rounded-full"></div>
-          </div>
-        )}
-        {messages.map((message)=>(
-          <div key={message.id} className={`flex w-fit p-4 rounded-full ${message.role === 'user' ? 'bg-primary/10' : 'none'} mb-4 ${message.role === 'user' ? 'justify-self-end' : 'justify-self-start'}`}>
-            <div className="text-base">{message.content}</div>
-          </div>
-        ))}
+      <div className="flex-1 overflow-y-auto px-4 py-8">
+        <div className="max-w-3xl mx-auto space-y-4">
+          {awaitingResponse && (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-2 px-4 py-2">
+                <div className="animate-pulse w-2 h-2 bg-primary/60 rounded-full"></div>
+                <div className="animate-pulse w-2 h-2 bg-primary/60 rounded-full" style={{ animationDelay: '0.2s' }}></div>
+                <div className="animate-pulse w-2 h-2 bg-primary/60 rounded-full" style={{ animationDelay: '0.4s' }}></div>
+              </div>
+            </div>
+          )}
+          {messages.map((message)=>(
+            <div
+              key={message.id}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`px-4 py-3 rounded-2xl ${
+                  message.role === 'user'
+                    ? 'max-w-[80%] bg-primary/10 text-foreground'
+                    : 'max-w-[95%] text-foreground'
+                }`}
+              >
+                {
+                  message.role === 'user' ? (
+                    <div className="text-base whitespace-pre-wrap break-words">{message.content}</div>
+                  ) : (
+                    <div className="text-base break-words [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_li]:mb-1">
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       
       <div className="w-full flex p-4">
