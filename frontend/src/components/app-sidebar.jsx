@@ -59,7 +59,11 @@ export default function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className={`flex-row items-center p-4 ${state === "expanded" ? "justify-between" : "justify-center"}`}>
         {state === "expanded" && (
-          <p className="text-2xl font-bold">Coherence</p>
+          <p className="text-2xl font-bold">
+            <Link to="/">
+              Coherence
+            </Link>
+          </p>
         )}
         <SidebarTrigger />
       </SidebarHeader>
