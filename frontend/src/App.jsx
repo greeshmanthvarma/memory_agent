@@ -22,6 +22,7 @@ export default function App() {
             <Route index element={<Navigate to="/chat" replace />} />
           </Route>
           <Route path="/memories" element={<MemorySpaceLayout><MemorySpacePage /></MemorySpaceLayout>} />
+          {/*<Route path="/memories/list" element={<MemorySpaceLayout><MemorySpaceListPage /></MemorySpaceLayout>} />*/}
         </Routes>
       </AuthProvider>
       </BrowserRouter>
