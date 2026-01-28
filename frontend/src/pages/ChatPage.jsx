@@ -1,7 +1,7 @@
 import {InputGroup,InputGroupButton,InputGroupTextarea,InputGroupAddon} from "@/components/ui/input-group"
 import { ArrowUp, Sun, Moon } from "lucide-react"
 import { useTheme } from '@/ThemeContext'
-import { useState,useEffect } from 'react'
+import { useState,useEffect, useRef } from 'react'
 import { useAuth } from '@/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {toast} from "sonner"
@@ -17,7 +17,10 @@ export default function ChatPage() {
   const { user } = useAuth()
   const { conversationId } = useParams()
   const navigate = useNavigate()
-  
+  const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
+  const isInitialLoadRef = useRef(false)
+
   useEffect(()=>{
     async function initializeConversation(){
       if(!user){
@@ -31,6 +34,7 @@ export default function ChatPage() {
         return
       }
 
+      isInitialLoadRef.current = true
       await fetchConversation(conversationId)
       await fetchMessages(conversationId)
     }
@@ -43,6 +47,28 @@ export default function ChatPage() {
       setError(null)
     }
   },[error])
+
+  useEffect(()=>{
+    if(messagesEndRef.current && messagesContainerRef.current){
+      const container = messagesContainerRef.current
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
+      
+      if(isInitialLoadRef.current || messages.length === 0){
+        setTimeout(() => {
+          if(messagesEndRef.current){
+            messagesEndRef.current.scrollIntoView({ behavior: 'auto' })
+          }
+        }, 100)
+        isInitialLoadRef.current = false
+      } else if(isNearBottom){
+        setTimeout(() => {
+          if(messagesEndRef.current){
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+          }
+        }, 100)
+      }
+    }
+  },[messages])
   
   async function fetchConversation(conversationId){
       try{
@@ -167,17 +193,9 @@ export default function ChatPage() {
             )}
           </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-8">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-8">
         <div className="max-w-3xl mx-auto space-y-4">
-          {awaitingResponse && (
-            <div className="flex justify-start">
-              <div className="flex items-center gap-2 px-4 py-2">
-                <div className="animate-pulse w-2 h-2 bg-primary/60 rounded-full"></div>
-                <div className="animate-pulse w-2 h-2 bg-primary/60 rounded-full" style={{ animationDelay: '0.2s' }}></div>
-                <div className="animate-pulse w-2 h-2 bg-primary/60 rounded-full" style={{ animationDelay: '0.4s' }}></div>
-              </div>
-            </div>
-          )}
+          
           {messages.map((message)=>(
             <div
               key={message.id}
@@ -193,15 +211,16 @@ export default function ChatPage() {
                 {
                   message.role === 'user' ? (
                     <div className="text-base whitespace-pre-wrap break-words">{message.content}</div>
-                  ) : (
+                  ) :(
                     <div className="text-base break-words [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_li]:mb-1">
                       <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
-                  )
+                    )
                 }
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef}></div>
         </div>
       </div>
       
