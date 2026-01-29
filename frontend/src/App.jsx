@@ -7,6 +7,7 @@ import MemorySpacePage from '@/pages/MemorySpacePage'
 import { AuthProvider } from '@/AuthContext'
 import LoginPage from '@/pages/LoginPage'
 import { Toaster } from '@/components/ui/sonner'
+import RegisterPage from '@/pages/RegisterPage'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Toaster />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/" element={<Layout />}>
             <Route path="chat" element={<ChatPage />} />
             <Route path="chat/:conversationId" element={<ChatPage />} />

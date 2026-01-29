@@ -1,5 +1,5 @@
 import * as React from 'react';
-import {useNavigate} from 'react-router-dom'
+import {useNavigate, Link} from 'react-router-dom'
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -90,10 +90,10 @@ export function LoginForm({
 */
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="!bg-white/20 dark:!bg-gray-900/50 backdrop-blur-xl rounded-xl border border-white/30 dark:border-white/10 justify-between transition-all duration-200 hover:bg-white/30 dark:hover:bg-gray-900/60 hover:border-white/40 dark:hover:border-white/20 hover:shadow-lg">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-black dark:text-white">Login to your account</CardTitle>
-          <CardDescription className="text-black dark:text-white">
+          <CardTitle>Login to your account</CardTitle>
+          <CardDescription>
             Enter your email/username below to login to your account
           </CardDescription>
         </CardHeader>
@@ -101,26 +101,26 @@ export function LoginForm({
           <form onSubmit={handleSubmit}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-3">
-                <Label htmlFor="email" className="text-black dark:text-white">Email/Username</Label>
+                <Label htmlFor="email">Email/Username</Label>
                 <Input id="identifier" type="text" placeholder="m@example.com" required 
-            onChange={(e)=>setIdentifier(e.target.value)} className="bg-white/50 dark:bg-gray-800/50 text-black dark:text-white border-white/30 dark:border-white/10"/>
+            onChange={(e)=>setIdentifier(e.target.value)} />
               </div>
               <div className="grid gap-3">
                 <div className="flex items-center">
-                  <Label htmlFor="password" className="text-black dark:text-white">Password</Label>
+                  <Label htmlFor="password">Password</Label>
                   <a
                     href="#"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline text-black dark:text-white">
+                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline">
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required onChange={(e)=>setPassword(e.target.value)} className="bg-white/50 dark:bg-gray-800/50 text-black dark:text-white border-white/30 dark:border-white/10"/>
+                <Input id="password" type="password" required onChange={(e)=>setPassword(e.target.value)} />
               </div>
                 <Button type="submit" className="w-full">
                   Login
                 </Button>
                 <div className="after:border-white/30 dark:after:border-white/10 relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
-                  <span className="bg-white/20 dark:bg-gray-900/50 text-black dark:text-white relative z-10 px-2">
+                  <span className="bg-background relative z-10 px-2">
                     Or continue with
                   </span>
               </div>
@@ -129,11 +129,11 @@ export function LoginForm({
                 </div>
               </div>
             
-            <div className="mt-4 text-center text-sm text-black dark:text-white">
+            <div className="mt-4 text-center text-sm">
               Don&apos;t have an account?{" "}
-              <a href="/register" className="underline underline-offset-4 text-black dark:text-white hover:text-gray-700 dark:hover:text-gray-300">
+              <Link to="/register" className="underline underline-offset-4">
                 Sign up
-              </a>
+              </Link>
             </div>
           </form>
         </CardContent>

@@ -1,7 +1,8 @@
-import { LoginForm } from "@/components/LoginForm"
+import { RegisterForm } from "@/components/RegisterForm"
 import { Sun, Moon } from "lucide-react"
 import { useTheme } from '@/ThemeContext';
-export default function LoginPage() {
+
+export default function RegisterPage() {
   const { theme, toggleTheme } = useTheme();
   return (
     <div className="min-h-svh w-full relative bg-background flex items-center justify-center p-6 md:p-10">
@@ -20,7 +21,7 @@ export default function LoginPage() {
           </button>
       </div>
       <div className="w-full max-w-sm relative z-10">
-        <LoginForm />
+        <RegisterForm />
       </div>
     </div>
   )
