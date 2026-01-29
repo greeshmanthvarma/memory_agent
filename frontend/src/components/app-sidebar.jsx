@@ -29,32 +29,10 @@ import { useAuth } from '@/AuthContext'
 import LogMemoryDialog from '@/components/LogMemoryDialog'
 
 export default function AppSidebar() {
-  const { state } = useSidebar()
-  const { user,loading,setUser } = useAuth()
-  const [conversations,setConversations]=useState([])
+  const { state, conversations } = useSidebar()
+  const { user,setUser } = useAuth()
   const [memoriesOpen, setMemoriesOpen] = useState(true)
   const [logMemoryOpen, setLogMemoryOpen] = useState(false)
-
-  useEffect(()=>{
-    async function fetchConversations(){
-      if(!user || loading) return
-      try{
-        const response=await fetch('/api/chat/conversation/all',{
-          credentials:'include'
-        })
-        if(response.ok){
-          const data=await response.json()
-          setConversations(data.conversations || [])
-        }else{
-          const errorData = await response.json().catch(() => ({}))
-          console.error('Failed to fetch conversations:', response.status, errorData)
-        }
-      }catch(error){
-        console.error('Error fetching conversations:', error)
-      }
-    }
-    fetchConversations()
-  },[user, loading])
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className={`flex-row items-center p-4 ${state === "expanded" ? "justify-between" : "justify-center"}`}>

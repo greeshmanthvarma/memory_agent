@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from app.database import get_db
 from app.models import MemoryCreate, Memory
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,10 +22,24 @@ async def create_memory(
     user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     bypass_similarity_check: bool = Query(False, description="Skip similarity check for duplicate memories")
-) -> Memory:
+):
     try:
         embedding = embed_text(memory.content)
-        return await create_memory_service(memory,embedding,user.id,user.collection_name,db,bypass_similarity_check)
+        result = await create_memory_service(memory,embedding,user.id,user.collection_name,db,bypass_similarity_check)
+        
+        if result["is_duplicate"]:
+            if result["duplicate_type"] == "exact":
+                message = "Memory already exists (exact match found)"
+            else:
+                message = "Similar memory already exists"
+        else:
+            message = "Memory created successfully"
+        
+        return JSONResponse({
+            "memory": result["memory"].model_dump(mode='json'),
+            "message": message,
+            "is_duplicate": result["is_duplicate"]
+        })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

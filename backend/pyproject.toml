@@ -14,6 +14,8 @@ dependencies = [
     "asyncpg==0.31.0",
     "psycopg2-binary==2.9.11",
     "tiktoken>=0.12.0",
+    "PyJWT",
+    "pwdlib[argon2]",
 ]
 
 [build-system]

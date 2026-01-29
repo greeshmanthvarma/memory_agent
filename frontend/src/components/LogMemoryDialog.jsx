@@ -29,7 +29,16 @@ export default function LogMemoryDialog({ open, onOpenChange }) {
                 credentials: 'include',
             })
             if(response.ok){
-                toast.success('Memory saved successfully')
+                const data = await response.json()
+                if(data.is_duplicate){
+                    if(data.duplicate_type === 'exact'){
+                        toast.info('Memory already exists (exact match found)')
+                    } else {
+                        toast.info('Similar memory already exists')
+                    }
+                } else {
+                    toast.success('Memory saved successfully')
+                }
                 setMemory("")
                 onOpenChange(false)
             }else{
@@ -63,10 +72,10 @@ export default function LogMemoryDialog({ open, onOpenChange }) {
                     />
                 </div>
                 <GlassDialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={isLoading}>
+                    <Button variant="outline" onClick={handleClose} disabled={isLoading} className="cursor-pointer">
                         Cancel
                     </Button>
-                    <Button onClick={handleSaveMemory} disabled={isLoading || !memory.trim()}>
+                    <Button onClick={handleSaveMemory} disabled={isLoading || !memory.trim()} className="cursor-pointer">
                         {isLoading ? 'Saving...' : 'Save Memory'}
                     </Button>
                 </GlassDialogFooter>

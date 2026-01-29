@@ -125,14 +125,22 @@ async def summarize_conversation( request: SummarizeRequest, user: UserModel = D
                 conversation_id=request.conversation_id,
                 tags=request.tags,
             )
-            created_memory = await create_memory_service(memory,embedding,user.id,user.collection_name,db)
-
+            result = await create_memory_service(memory,embedding,user.id,user.collection_name,db)
+            
+            if result["is_duplicate"]:
+                if result["duplicate_type"] == "exact":
+                    message = "Memory already exists (exact match found)"
+                else:
+                    message = "Similar memory already exists"
+            else:
+                message = "Memory created successfully"
 
             return JSONResponse({
                 "summary": summary,
-                "message":"Memory created successfully",
-                "memory": created_memory.model_dump(mode='json'),
-                "memory_created": True,
+                "message": message,
+                "memory": result["memory"].model_dump(mode='json'),
+                "memory_created": not result["is_duplicate"],
+                "is_duplicate": result["is_duplicate"]
             })
         else:
             return JSONResponse({

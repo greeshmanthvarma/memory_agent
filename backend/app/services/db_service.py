@@ -45,6 +45,14 @@ async def db_get_memory_by_id(memory_id: int,user_id: int,db: AsyncSession):
     except Exception as e:
         raise Exception(f"Error getting memory by id {memory_id}: {e}")
 
+async def db_get_memory_by_content(content: str, user_id: int, db: AsyncSession):
+    try:
+        result = await db.execute(select(MemoryModel).filter(MemoryModel.content == content).filter(MemoryModel.user_id == user_id))
+        memory = result.scalar_one_or_none()
+        return memory
+    except Exception as e:
+        raise Exception(f"Error getting memory by content: {e}")
+
 async def db_create_conversation(conversation: ConversationModel, db: AsyncSession):
     try:
         db.add(conversation)

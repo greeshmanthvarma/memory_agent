@@ -1,6 +1,6 @@
 from app.models import MemoryCreate
 from app.services.qdrant_service import add_point, search_points
-from app.services.db_service import db_create_memory, db_get_memory_by_embedding_id
+from app.services.db_service import db_create_memory, db_get_memory_by_embedding_id, db_get_memory_by_content
 from app.models import Memory
 from app.db_models import MemoryModel, MemoryType
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,11 +41,26 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
 
 async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int,collection_name: str,db: AsyncSession,bypass_similarity_check: bool = False):
     try:
+       
+        if not bypass_similarity_check:
+            exact_match = await db_get_memory_by_content(memory.content, user_id, db)
+            if exact_match:
+                return {
+                    "memory": db_memory_to_memory(exact_match),
+                    "is_duplicate": True,
+                    "duplicate_type": "exact"
+                }
+        
+        
         similar_memories = check_similar_memories(memory.content,embedding,user_id=user_id,collection_name=collection_name)
         if len(similar_memories) > 0 and not bypass_similarity_check:
             similar_memory = similar_memories[0]
             db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],user_id,db)
-            return db_memory_to_memory(db_similar_memory)
+            return {
+                "memory": db_memory_to_memory(db_similar_memory),
+                "is_duplicate": True,
+                "duplicate_type": "semantic"
+            }
         else:
            
             conversation_id = memory.conversation_id if memory.conversation_id and memory.conversation_id != 0 else None
@@ -66,7 +81,11 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int
                 importance_score=memory.importance_score,
                 tags=memory.tags,
             ), db)
-            return db_memory_to_memory(db_memory)
+            return {
+                "memory": db_memory_to_memory(db_memory),
+                "is_duplicate": False,
+                "duplicate_type": None
+            }
     except ValueError:
         raise
     except Exception as e:

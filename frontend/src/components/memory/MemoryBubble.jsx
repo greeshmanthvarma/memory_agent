@@ -26,7 +26,7 @@ export default function MemoryBubble({memory}){
     return (
         <motion.div 
                 key={memory.id} 
-                className=" w-36 h-36 flex items-center justify-center bg-white/10 dark:bg-gray-800/30 backdrop-blur-xl border border-white/30 dark:border-white/10 rounded-full p-4 shadow-md"
+                className="w-32 h-32 flex items-center justify-center cursor-pointer bg-white/10 dark:bg-gray-800/30 backdrop-blur-xl border border-white/30 dark:border-white/10 rounded-full p-3 shadow-md"
                 animate={{
                     x: path.x,
                     y: path.y,

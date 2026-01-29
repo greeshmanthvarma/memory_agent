@@ -47,14 +47,14 @@ export default function MemorySpacePage() {
     <div className="h-full overflow-y-auto p-6">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center justify-center gap-2">
-          <Button onClick={()=> navigate(-1)} variant="ghost" size="icon">
+          <Button onClick={()=> navigate(-1)} variant="ghost" size="icon" className="cursor-pointer">
             <ArrowLeftIcon className="w-4 h-4" />
           </Button>
           <h1 className="text-2xl font-bold">Memory Space</h1>
         </div>
         
         <div className="flex items-center gap-2">
-          <Button onClick={()=>setBubbleView(!bubbleView)}>
+          <Button onClick={()=>setBubbleView(!bubbleView)} className="cursor-pointer">
             {bubbleView ? 'List View' : 'Bubble View'}
           </Button>
           <button
