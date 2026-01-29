@@ -28,6 +28,7 @@ class MemoryCreate(BaseModel):
     conversation_id: Optional[int] = None
     importance_score: float = 0.0
     tags: List[str] = Field(default_factory=list)
+    memory_category: Optional[Literal["fact", "preference", "event"]] = None
 
 
 class MemoryUpdate(BaseModel):

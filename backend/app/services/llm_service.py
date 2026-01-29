@@ -25,24 +25,100 @@ def _build_summary_prompt(messages: str) -> str:
         Each message has a role : user or assistant and the content of the message. The messages list is in chronological order.
 
         Instructions:
-        1. Produce TWO summaries:
+        1. Produce TWO summaries, relevant tags, and a classification:
         - summary_short: ONE concise sentence (max 25 words)
         - summary_long: A brief paragraph (3-6 sentences, max 500 tokens)
+        - tags: A list of relevant tags (max 5 tags)
+        - memory_category: Classification for deduplication purposes. Must be one of:
+          * "fact": Stable factual information (e.g., "User is vegetarian", "User lives in San Francisco")
+          * "preference": User preferences or opinions (e.g., "User prefers Italian cuisine", "User likes hiking")
+          * "event": One-time or recurring events (e.g., "User did a pull workout today", "User visited Japan")
+          
+          Facts and preferences should be deduplicated (merged if similar). Events should NOT be deduplicated (each occurrence creates a new memory).
+        
 
-        2. The summaries must:
+        2. Only create a summary if the information can add value to the user's memory space and be used as context for future conversations.
+        
+        CRITICAL: When in doubt, return null. It is better to skip a summary than to create a low-value memory.
+        
+        You MUST return null if:
+        - The conversation doesn't reveal something specific about the USER
+        - The information is temporary, vague, or unlikely to be useful later
+        - You're uncertain whether the memory would add value
+        
+        CRITICAL: Do NOT create summaries for:
+        - Temporary questions or one-off requests
+        - Greetings, pleasantries, or casual conversation without substance
+        - Information that's too vague or generic
+        - Details that are unlikely to be relevant later
+        - Questions that don't reveal anything about the USER
+        
+        What counts as "meaningful" memory (examples, not exhaustive):
+        - Factual information ABOUT THE USER: preferences, decisions, important events, personal details
+        - Reusable context: information that would help personalize future conversations WITH THE USER
+        - Stable information: facts about the user that won't change quickly
+        
+        Rule of thumb: If the conversation doesn't reveal something specific about the USER that would be useful in future conversations, return null. When uncertain, err on the side of returning null.
+        
+        Use your judgment to determine if information is meaningful based on these guidelines, not just these specific examples.
+        
+        
+        3. The summaries must:
         - Capture factual information, preferences, decisions, or important events
         - Avoid conversational fluff or temporary details
         - Be written in neutral third-person form
         - NOT mention "user", "assistant", or dialogue structure
 
-        3. Do NOT invent information.
-        4. Do NOT include opinions unless explicitly stated in the conversation.
-        5. If no meaningful memory can be formed, return null.
+        4. Do NOT invent information.
+        5. Do NOT include opinions unless explicitly stated in the conversation.
+        6. Only create a summary if you're confident the information is accurate and useful.
+        
+        Examples:
+        
+        Good summary (fact + preference):
+        {{
+        "summary_short": "User prefers vegetarian restaurants and lives in San Francisco",
+        "summary_long": "The user is vegetarian and enjoys exploring plant-based dining options in San Francisco. They mentioned living in the city and being interested in trying new vegetarian restaurants.",
+        "tags": ["dietary_preferences", "location", "food"],
+        "memory_category": "preference"
+        }}
+        
+        Good summary (event):
+        {{
+        "summary_short": "User completed a pull workout today",
+        "summary_long": "The user did a pull workout today, focusing on back and bicep exercises.",
+        "tags": ["fitness", "workout"],
+        "memory_category": "event"
+        }}
+        
+        Bad summary (too temporary):
+        {{
+        "summary_short": "User asked about the weather today",
+        "summary_long": "The user asked what the weather was like today.",
+        "tags": ["weather"]
+        }}
+        
+        Bad summary (no factual value):
+        {{
+        "summary_short": "User had a nice conversation",
+        "summary_long": "The user had a pleasant conversation with the assistant.",
+        "tags": []
+        }}
 
-        Return format (JSON only):
+        Return format (JSON only, no markdown, no extra text):
         {{
         "summary_short": "...",
-        "summary_long": "..."
+        "summary_long": "...",
+        "tags": ["..."],
+        "memory_category": "fact" | "preference" | "event"
+        }}
+        
+        If no meaningful memory can be formed, return:
+        {{
+        "summary_short": null,
+        "summary_long": null,
+        "tags": [],
+        "memory_category": null
         }}
         """
 
@@ -80,8 +156,31 @@ def _build_chat_prompt() -> str:
     - If the user asks you to recall a memory, you should use the search_memories tool to recall the memory.
     - Be conversational, helpful, and natural.
     - Reference specific memories when relevant to provide personalized responses.
-    - Do not invent information unless it is explicitly stated in the conversation.
+    - Do not invent information unless it is explicitly stated in the conversation or memories.
     - If no relevant memories are found, respond based on your general knowledge.
+    
+    Using memory information effectively:
+    - Memory Type: "explicit" memories are manually logged by the user and are highly reliable. "implicit" memories are auto-generated from conversations and should be used with appropriate context.
+    - Similarity scores: Higher scores (>0.8) indicate more relevant memories. Use multiple memories if they're all relevant.
+    - Tags: Use tags to understand memory categories and find related information.
+    - Multiple memories: When multiple memories are returned, synthesize them to provide comprehensive context. If memories conflict, prioritize more recent or explicit ones.
+    
+    Temporal context guidelines:
+    - The "Created" timestamp shows when the memory was formed. Always use this temporal information in your responses.
+    - For recent memories (hours/days ago): Reference them with specific timeframes (e.g., "You mentioned X yesterday", "Based on your recent conversation about Y").
+    - For older memories (weeks/months/years ago): Acknowledge the time gap appropriately (e.g., "You mentioned X a few weeks ago", "Earlier this year you told me about Y").
+    - Event-type memories: These represent specific occurrences at particular times. Always reference them with temporal context:
+      * Recent events: "You did a pull workout yesterday" (specific)
+      * Older events: "You did pull workouts last week" or "You mentioned doing pull workouts a few days ago" (appropriate timeframe)
+    - Recency priority: More recent memories are often more relevant to current context, but older memories provide valuable historical context and patterns.
+    - Temporal patterns: If multiple event-type memories show patterns (e.g., multiple workouts), acknowledge the pattern with temporal context (e.g., "You've been doing pull workouts regularly this week").
+    - When referencing temporal information, be natural and conversational - don't just state dates, use relative timeframes that feel natural.
+    
+    Best practices:
+    - Proactively search memories when the conversation topic is clearly personal or user-specific (e.g., preferences, past experiences, personal questions). Do NOT search for general knowledge questions that don't require personal context.
+    - When referencing memories, be specific but natural (e.g., "Based on what you mentioned about X..." rather than "According to Memory ID 123...").
+    - If a memory seems incorrect or outdated, acknowledge uncertainty and ask for clarification if needed.
+    - Respect user privacy - memories are personal and should be referenced appropriately in context.
 
    """
 def _format_messages(messages: List[Message]) -> List[Dict]:

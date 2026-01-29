@@ -1,7 +1,8 @@
-import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen, User2, ChevronUp} from "lucide-react"
+import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen, User2, ChevronUp, LogOut,CircleUserRound} from "lucide-react"
 import { useState,useEffect } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
 import {
   Sidebar,
   SidebarContent,
@@ -27,12 +28,31 @@ import {
 } from "@/components/ui/collapsible"
 import { useAuth } from '@/AuthContext'
 import LogMemoryDialog from '@/components/LogMemoryDialog'
+import { toast } from "sonner"
 
 export default function AppSidebar() {
   const { state, conversations } = useSidebar()
   const { user,setUser } = useAuth()
   const [memoriesOpen, setMemoriesOpen] = useState(true)
   const [logMemoryOpen, setLogMemoryOpen] = useState(false)
+  const navigate = useNavigate()
+  async function handleSignOut(){
+    try{
+      const response = await fetch('/api/auth/logout',{
+        method: 'POST',
+        credentials:'include'
+      })
+      if(response.ok){
+        setUser(null)
+        toast.success('Signed out successfully')
+        navigate('/login')
+      }else{
+        toast.error('Failed to sign out')
+      }
+    }catch(error){
+      toast.error('Failed to sign out: ' + error.message)
+    }
+  }
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className={`flex-row items-center p-4 ${state === "expanded" ? "justify-between" : "justify-center"}`}>
@@ -60,19 +80,21 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              
+              {state === "expanded" ? (
               <Collapsible
                 asChild
                 open={memoriesOpen}
                 onOpenChange={setMemoriesOpen}
               >
                 <SidebarMenuItem>
+                
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip="Memories" className="cursor-pointer">
                       <Bubbles />
                       <span>Memories</span>
                       <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
                     </SidebarMenuButton>
+                  
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarMenuSub>
@@ -94,7 +116,32 @@ export default function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
-              
+              ):(
+                <SidebarMenuItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <SidebarMenuButton tooltip="Memories">
+                        <Bubbles />
+                      </SidebarMenuButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      side="top"
+                      className="w-[--radix-popper-anchor-width]"
+                    >
+                      <DropdownMenuItem asChild>
+                        <Link to="/memories" className="cursor-pointer">
+                          <BrainCog className="mr-2 h-4 w-4" />
+                          <span>Memory Space</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setLogMemoryOpen(true)} className="cursor-pointer">
+                        <NotebookPen className="mr-2 h-4 w-4" />
+                        <span>Log Memory</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <a href="#">
@@ -141,10 +188,12 @@ export default function AppSidebar() {
                   className="w-[--radix-popper-anchor-width]"
                 >
                   <DropdownMenuItem>
-                    <span>Account</span>
+                    <CircleUserRound/>
+                    <span className="cursor-pointer">Account</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <span>Sign out</span>
+                  <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
+                    <LogOut />
+                    <span className="cursor-pointer">Sign out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

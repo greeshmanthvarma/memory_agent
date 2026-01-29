@@ -124,6 +124,7 @@ async def summarize_conversation( request: SummarizeRequest, user: UserModel = D
                 memory_type="implicit",
                 conversation_id=request.conversation_id,
                 tags=request.tags,
+                memory_category=summary.get("memory_category"),
             )
             result = await create_memory_service(memory,embedding,user.id,user.collection_name,db)
             

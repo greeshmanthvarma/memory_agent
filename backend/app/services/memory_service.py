@@ -41,8 +41,10 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
 
 async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int,collection_name: str,db: AsyncSession,bypass_similarity_check: bool = False):
     try:
+        
+        should_deduplicate = not bypass_similarity_check and memory.memory_category != "event"
        
-        if not bypass_similarity_check:
+        if should_deduplicate:
             exact_match = await db_get_memory_by_content(memory.content, user_id, db)
             if exact_match:
                 return {
@@ -53,7 +55,7 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int
         
         
         similar_memories = check_similar_memories(memory.content,embedding,user_id=user_id,collection_name=collection_name)
-        if len(similar_memories) > 0 and not bypass_similarity_check:
+        if len(similar_memories) > 0 and should_deduplicate:
             similar_memory = similar_memories[0]
             db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],user_id,db)
             return {
