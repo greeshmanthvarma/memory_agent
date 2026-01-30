@@ -99,3 +99,17 @@ async def db_get_all_conversations(user_id: int, db: AsyncSession):
         return conversations
     except Exception as e:
         raise Exception(f"Error getting all conversations for user {user_id}: {e}")
+
+async def db_delete_conversation(conversation_id: int, user_id: int, db: AsyncSession):
+    try:
+        result = await db.execute(select(ConversationModel).filter(ConversationModel.id == conversation_id).filter(ConversationModel.user_id == user_id))
+        conversation = result.scalar_one_or_none()
+        if not conversation:
+            raise ValueError(f"Conversation with id {conversation_id} not found in the database")
+        await db.delete(conversation)
+        await db.commit()
+        return True
+    except ValueError:
+        raise
+    except Exception as e:
+        raise Exception(f"Error deleting conversation by id {conversation_id}: {e}")

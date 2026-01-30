@@ -1,7 +1,7 @@
 import { motion } from "motion/react"
 import {useMemo} from "react"
 
-export default function MemoryBubble({memory}){
+export default function MemoryBubble({memory, onClick}){
 
     const {path,duration,rotation} = useMemo(()=>{
         
@@ -27,6 +27,7 @@ export default function MemoryBubble({memory}){
         <motion.div 
                 key={memory.id} 
                 className="w-32 h-32 flex items-center justify-center cursor-pointer bg-white/10 dark:bg-gray-800/30 backdrop-blur-xl border border-white/30 dark:border-white/10 rounded-full p-3 shadow-md"
+                onClick={onClick}
                 animate={{
                     x: path.x,
                     y: path.y,

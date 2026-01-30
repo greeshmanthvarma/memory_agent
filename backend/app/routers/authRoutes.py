@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Cookie
 from fastapi.responses import JSONResponse
 from app.db_models import UserModel
-from app.models import UserRegister, UserLogin
+from app.models import UserRegister, UserLogin, UpdateProfileRequest
 from app.database import get_db
 from app.services.auth_service import hash_password, verify_password
 from app.services.qdrant_service import create_collection, delete_collection
@@ -126,7 +126,12 @@ async def login(user:UserLogin, db: AsyncSession = Depends(get_db)):
 
 @auth_router.get("/me")
 async def get_current_user_info(user: UserModel = Depends(get_current_user)):
-    return {"email": user.email, "username": user.username, "collection_name": user.collection_name}
+    return {
+        "email": user.email, 
+        "username": user.username, 
+        "collection_name": user.collection_name,
+        "profile_picture": user.profile_picture
+    }
 
 @auth_router.post("/logout")
 async def logout():
@@ -136,3 +141,38 @@ async def logout():
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Logout Failed: {str(e)}")
+
+@auth_router.post("/update-profile")
+async def update_profile(
+    updateRequest: UpdateProfileRequest, 
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        if updateRequest.username and updateRequest.username != user.username:
+            result = await db.execute(select(UserModel).filter(UserModel.username == updateRequest.username))
+            existing_user = result.scalar_one_or_none()
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Username already taken")
+            user.username = updateRequest.username
+        
+        if updateRequest.profile_picture is not None:
+            user.profile_picture = updateRequest.profile_picture
+        
+        await db.commit()
+        await db.refresh(user)
+        
+        return JSONResponse({
+            "message": "Profile updated successfully",
+            "user": {
+                "email": user.email,
+                "username": user.username,
+                "collection_name": user.collection_name,
+                "profile_picture": user.profile_picture
+            }
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Profile update failed: {str(e)}")

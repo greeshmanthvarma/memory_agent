@@ -75,34 +75,36 @@ def _build_summary_prompt(messages: str) -> str:
         
         Examples:
         
-        Good summary (fact + preference):
+        Good summary (preference):
         {{
-        "summary_short": "User prefers vegetarian restaurants and lives in San Francisco",
-        "summary_long": "The user is vegetarian and enjoys exploring plant-based dining options in San Francisco. They mentioned living in the city and being interested in trying new vegetarian restaurants.",
-        "tags": ["dietary_preferences", "location", "food"],
-        "memory_category": "preference"
+            "summary_short": "User prefers vegetarian restaurants and lives in San Francisco",
+            "summary_long": "The user is vegetarian and enjoys exploring plant-based dining options in San Francisco. They mentioned living in the city and being interested in trying new vegetarian restaurants.",
+            "tags": ["dietary_preferences", "location", "food"],
+            "memory_category": "preference"
         }}
         
         Good summary (event):
         {{
-        "summary_short": "User completed a pull workout today",
-        "summary_long": "The user did a pull workout today, focusing on back and bicep exercises.",
-        "tags": ["fitness", "workout"],
-        "memory_category": "event"
+            "summary_short": "User completed a pull workout today",
+            "summary_long": "The user did a pull workout today, focusing on back and bicep exercises.",
+            "tags": ["fitness", "workout"],
+            "memory_category": "event"
         }}
         
         Bad summary (too temporary):
         {{
-        "summary_short": "User asked about the weather today",
-        "summary_long": "The user asked what the weather was like today.",
-        "tags": ["weather"]
+            "summary_short": null,
+            "summary_long": null,
+            "tags": [],
+            "memory_category": null
         }}
         
         Bad summary (no factual value):
         {{
-        "summary_short": "User had a nice conversation",
-        "summary_long": "The user had a pleasant conversation with the assistant.",
-        "tags": []
+            "summary_short": null,
+            "summary_long": null,
+            "tags": [],
+            "memory_category": null
         }}
 
         Return format (JSON only, no markdown, no extra text):
@@ -159,6 +161,12 @@ def _build_chat_prompt() -> str:
     - Do not invent information unless it is explicitly stated in the conversation or memories.
     - If no relevant memories are found, respond based on your general knowledge.
     
+    CRITICAL: Do NOT mention memory search results in your responses unless it's directly relevant to answering the user's question.
+    - Do NOT say things like "I couldn't find any memories..." or "It looks like I didn't find..." or "I searched your memories and..."
+    - Simply respond naturally with your answer, incorporating memory information seamlessly when available.
+    - If memories are relevant, reference them naturally (e.g., "Since you enjoyed Dandadan..." instead of "Based on the memory I found about Dandadan...").
+    - If no memories are found, just answer the question directly without mentioning the search (e.g., "Here are some recent romance SOL anime..." instead of "I didn't find memories, but here are...").
+    
     Using memory information effectively:
     - Memory Type: "explicit" memories are manually logged by the user and are highly reliable. "implicit" memories are auto-generated from conversations and should be used with appropriate context.
     - Similarity scores: Higher scores (>0.8) indicate more relevant memories. Use multiple memories if they're all relevant.
@@ -181,6 +189,7 @@ def _build_chat_prompt() -> str:
     - When referencing memories, be specific but natural (e.g., "Based on what you mentioned about X..." rather than "According to Memory ID 123...").
     - If a memory seems incorrect or outdated, acknowledge uncertainty and ask for clarification if needed.
     - Respect user privacy - memories are personal and should be referenced appropriately in context.
+    - Keep responses concise and direct. Don't add unnecessary meta-commentary about memory searches.
 
    """
 def _format_messages(messages: List[Message]) -> List[Dict]:

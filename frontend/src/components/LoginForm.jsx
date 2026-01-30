@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 //import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/AuthContext';
+import { toast } from "sonner"
 
 export function LoginForm({
   className,
@@ -25,10 +26,6 @@ export function LoginForm({
   const {refreshUser,setUser}=useAuth()
   
   async function loginByCredentials(){
-      /*if(!identifier || !password || password.length<6 || !identifier.includes('@')){
-        alert('Please enter a valid email/username and password (min 6 characters)')
-        return
-      }*/
     try{
       const response = await fetch('/api/auth/login',{
         method: 'POST',
@@ -36,19 +33,20 @@ export function LoginForm({
         body: JSON.stringify({identifier, password}),
         credentials:'include'
       })
-       console.log(response)
        
       if(response.ok){
         await refreshUser()
+        toast.success('Login successful')
         navigate('/') 
       }
       else{
-        throw new Error('Failed to Authenticate')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || 'Failed to authenticate')
       }
     }
     catch(err){
       console.error('Login error:', err)
-      alert('Login failed: ' + err.message)
+      toast.error('Login failed: ' + err.message)
     }
   }
 
@@ -108,11 +106,12 @@ export function LoginForm({
               <div className="grid gap-3">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
-                  <a
-                    href="#"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline">
+                  <Link
+                    to="/forgot-password"
+                    disabled={true}
+                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline cursor-not-allowed">
                     Forgot your password?
-                  </a>
+                  </Link>
                 </div>
                 <Input id="password" type="password" required onChange={(e)=>setPassword(e.target.value)} />
               </div>

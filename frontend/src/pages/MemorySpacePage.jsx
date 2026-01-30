@@ -3,6 +3,7 @@ import { useAuth } from '@/AuthContext'
 import { toast } from 'sonner'
 import MemoryBubblesGrid from '@/components/memory/MemoryBubblesGrid'
 import MemoryList from '@/components/memory/MemoryList'
+import MemoryDialog from '@/components/memory/MemoryDialog'
 import { Button } from '@/components/ui/button'
 import { Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/ThemeContext'
@@ -11,16 +12,26 @@ import { useNavigate } from 'react-router-dom'
 export default function MemorySpacePage() {
 
   const [memories,setMemories]=useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const {user}=useAuth()
   const [bubbleView,setBubbleView]=useState(true)
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate()
+  const [selectedMemory, setSelectedMemory] = useState(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+
+  function handleMemoryClick(memory) {
+    setSelectedMemory(memory)
+    setIsDialogOpen(true)
+  }
   useEffect(()=>{
     async function fetchMemories(){
       if(!user){
         toast.error('Please login to continue')
+        setIsLoading(false)
         return
       }
+      setIsLoading(true)
       try{
         const response =await fetch('/api/memory',{
           credentials:'include',
@@ -38,6 +49,8 @@ export default function MemorySpacePage() {
         }
       }catch(error){
         toast.error('Failed to fetch memories: ' + error.message)
+      }finally{
+        setIsLoading(false)
       }
     }
     fetchMemories()
@@ -71,14 +84,29 @@ export default function MemorySpacePage() {
         </div>
         
       </div>
-      {
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm text-muted-foreground">Loading memories...</p>
+          </div>
+        </div>
+      ) : memories.length === 0 ? (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">No memories yet. Log a memory or start chatting to create memories!</p>
+        </div>
+      ) : (
         bubbleView ? (
-          <MemoryBubblesGrid memories={memories} />
+          <MemoryBubblesGrid memories={memories} onMemoryClick={handleMemoryClick} />
         ) : (
-          <MemoryList memories={memories} />
+          <MemoryList memories={memories} onMemoryClick={handleMemoryClick} />
         )
-      }
-      
+      )}
+      <MemoryDialog 
+        open={isDialogOpen} 
+        onOpenChange={setIsDialogOpen} 
+        memory={selectedMemory}
+      />
     </div>
   )
 }

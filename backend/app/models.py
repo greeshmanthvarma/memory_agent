@@ -88,3 +88,7 @@ class SummarizeRequest(BaseModel):
     conversation_id: Optional[int] = None  
     create_memory: bool = True
     tags: List[str] = Field(default_factory=list)
+
+class UpdateProfileRequest(BaseModel):
+    profile_picture: Optional[str] = None
+    username: Optional[str] = None

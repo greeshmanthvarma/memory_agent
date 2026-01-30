@@ -23,6 +23,7 @@ export function RegisterForm({
   const [email,setEmail]=React.useState('')
   const [password,setPassword]=React.useState('')
   const [username,setUsername]=React.useState('')
+  const [confirmPassword,setConfirmPassword]=React.useState('')
   const { refreshUser } = useAuth()
   const [isLoading, setIsLoading] = React.useState(false)
   
@@ -91,8 +92,12 @@ export function RegisterForm({
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" required onChange={(e)=>setPassword(e.target.value)} />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Creating account...' : 'Sign up'}
+              <div className="grid gap-3">
+                <Label htmlFor="confirm_password">Confirm Password</Label>
+                <Input id="confirm_password" type="password" required onChange={(e)=>setConfirmPassword(e.target.value)} />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading || password !== confirmPassword}>
+                {isLoading ? 'Creating account...' : password !== confirmPassword ? 'Passwords do not match' : 'Sign up'}
               </Button>
             
             <div className="mt-4 text-center text-sm">

@@ -78,6 +78,7 @@ class UserModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     email =Column(String, nullable=False, unique=True)
     password =Column(String, nullable=True)
+    profile_picture =Column(String, nullable=True)
     username =Column(String, nullable=False, unique=True)
     collection_name =Column(String, nullable=False, unique=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

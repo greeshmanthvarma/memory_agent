@@ -1,4 +1,4 @@
-import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen, User2, ChevronUp, LogOut,CircleUserRound} from "lucide-react"
+import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen, User2, ChevronUp, LogOut,UserRoundPen,Ellipsis,Pencil,Trash2} from "lucide-react"
 import { useState,useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
@@ -29,13 +29,26 @@ import {
 import { useAuth } from '@/AuthContext'
 import LogMemoryDialog from '@/components/LogMemoryDialog'
 import { toast } from "sonner"
+import EditProfileDialog from "@/components/EditProfileDialog"
+import { AlertDialogDestructive } from "@/components/AlertDialog"
 
 export default function AppSidebar() {
-  const { state, conversations } = useSidebar()
+  const { state, conversations, refreshConversations } = useSidebar()
   const { user,setUser } = useAuth()
+  const location = useLocation()
   const [memoriesOpen, setMemoriesOpen] = useState(true)
   const [logMemoryOpen, setLogMemoryOpen] = useState(false)
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [hoveredConversationId, setHoveredConversationId] = useState(null)
+  const [editingConversationId, setEditingConversationId] = useState(null)
+  const [deleteConversationOpen, setDeleteConversationOpen] = useState(false)
+  const [deleteConversationId, setDeleteConversationId] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const navigate = useNavigate()
+  
+  const currentConversationId = location.pathname.startsWith('/chat/') 
+    ? parseInt(location.pathname.split('/chat/')[1]) 
+    : null
   async function handleSignOut(){
     try{
       const response = await fetch('/api/auth/logout',{
@@ -51,6 +64,37 @@ export default function AppSidebar() {
       }
     }catch(error){
       toast.error('Failed to sign out: ' + error.message)
+    }
+  }
+
+  async function handleDeleteConversation(conversationId) {
+    if (!conversationId) return
+    setIsDeleting(true)
+
+    try {
+      const response = await fetch(`/api/chat/conversation/${conversationId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        toast.success('Conversation deleted successfully')
+        setDeleteConversationOpen(false)
+        setDeleteConversationId(null)
+        setIsDeleting(false)
+        await refreshConversations()
+        
+        if (currentConversationId === conversationId) {
+          navigate('/chat')
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || 'Failed to delete conversation')
+        setIsDeleting(false)
+      }
+    } catch (error) {
+      toast.error('Failed to delete conversation: ' + error.message)
+      setIsDeleting(false)
     }
   }
   return (
@@ -125,7 +169,8 @@ export default function AppSidebar() {
                       </SidebarMenuButton>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
-                      side="top"
+                      side="right"
+                      align="end"
                       className="w-[--radix-popper-anchor-width]"
                     >
                       <DropdownMenuItem asChild>
@@ -153,11 +198,69 @@ export default function AppSidebar() {
               <SidebarMenu>
                 {conversations.map((conversation)=>(
                   <SidebarMenuItem key={conversation.id}>
-                    <SidebarMenuButton asChild>
-                      <Link to={`/chat/${conversation.id}`}>
-                        <span>{conversation.title || `Chat ${conversation.id}`}</span>
-                      </Link>
-                    </SidebarMenuButton>
+                    <div 
+                      id={`conversation-${conversation.id}`}
+                      className={`flex items-center justify-between rounded-md gap-2 group ${currentConversationId === conversation.id ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}`}
+                      onMouseEnter={() => setHoveredConversationId(conversation.id)}
+                      onMouseLeave={() => {
+                        if (!document.querySelector(`[data-state="open"]`)) {
+                          setHoveredConversationId(null)
+                        }
+                      }}
+                    >
+                      <SidebarMenuButton asChild className="flex-1">
+                        <Link to={`/chat/${conversation.id}`}>
+                          <span>{conversation.title || `Chat ${conversation.id}`}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      {hoveredConversationId === conversation.id && (
+                        <DropdownMenu 
+                          onOpenChange={(open) => {
+                            if (!open) {
+                              setHoveredConversationId(null)
+                            }
+                          }}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                              onMouseEnter={(e) => e.stopPropagation()}
+                            >
+                              <Ellipsis/>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            side="right"
+                            align="end"
+                            className="w-48"
+                            onMouseLeave={() => setHoveredConversationId(null)}
+                          >
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setEditingConversationId(conversation.id)
+                                toast.info('Edit title feature coming soon')
+                              }} 
+                              className="cursor-pointer"
+                            >
+                              <Pencil className="mr-2 h-4 w-4"/>
+                              <span>Edit Title</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setDeleteConversationId(conversation.id)
+                                setDeleteConversationOpen(true)
+                              }} 
+                              className="cursor-pointer text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Delete Conversation</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -179,9 +282,9 @@ export default function AppSidebar() {
                   side="top"
                   className="w-[--radix-popper-anchor-width]"
                 >
-                  <DropdownMenuItem>
-                    <CircleUserRound/>
-                    <span className="cursor-pointer">Account</span>
+                  <DropdownMenuItem onClick={() => setEditProfileOpen(true)} className="cursor-pointer">
+                    <UserRoundPen/>
+                    <span className="cursor-pointer">Edit Profile</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
                     <LogOut />
@@ -194,6 +297,8 @@ export default function AppSidebar() {
         </SidebarFooter>
       <SidebarRail />
       <LogMemoryDialog open={logMemoryOpen} onOpenChange={setLogMemoryOpen} />
+      <EditProfileDialog open={editProfileOpen} onOpenChange={setEditProfileOpen} />
+      <AlertDialogDestructive open={deleteConversationOpen} onOpenChange={setDeleteConversationOpen} onDelete={handleDeleteConversation} conversationId={deleteConversationId} isDeleting={isDeleting} />
     </Sidebar>
   )
 }

@@ -9,7 +9,7 @@ from app.services.memory_service import create_memory as create_memory_service
 from app.services.embedding_service import embed_text
 from typing import List
 from app.db_models import UserModel, MessageModel, ConversationModel
-from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service
+from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service, db_delete_conversation as db_delete_conversation_service
 
 chat_router = APIRouter(
     prefix="/api/chat",
@@ -123,7 +123,7 @@ async def summarize_conversation( request: SummarizeRequest, user: UserModel = D
                 summary_long=summary["summary_long"],
                 memory_type="implicit",
                 conversation_id=request.conversation_id,
-                tags=request.tags,
+                tags=summary.get("tags", []),
                 memory_category=summary.get("memory_category"),
             )
             result = await create_memory_service(memory,embedding,user.id,user.collection_name,db)
@@ -215,3 +215,12 @@ async def get_conversation(conversation_id: int, user: UserModel = Depends(get_c
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@chat_router.delete("/conversation/{conversation_id}")
+async def delete_conversation(conversation_id: int, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        await db_delete_conversation_service(conversation_id, user.id, db)
+        return JSONResponse({"message": "Conversation deleted successfully"})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
