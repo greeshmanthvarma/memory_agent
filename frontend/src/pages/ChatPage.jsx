@@ -29,7 +29,7 @@ export default function ChatPage() {
   useEffect(()=>{
     async function initializeConversation(){
       if(!user){
-        setError('Please login to continue')
+        navigate('/')
         return
       }
 
