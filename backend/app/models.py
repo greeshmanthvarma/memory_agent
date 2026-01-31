@@ -92,3 +92,6 @@ class SummarizeRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     profile_picture: Optional[str] = None
     username: Optional[str] = None
+
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None

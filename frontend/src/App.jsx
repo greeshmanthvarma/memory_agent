@@ -8,6 +8,7 @@ import { AuthProvider } from '@/AuthContext'
 import LoginPage from '@/pages/LoginPage'
 import { Toaster } from '@/components/ui/sonner'
 import RegisterPage from '@/pages/RegisterPage'
+import LandingPage from '@/pages/LandingPage'
 
 export default function App() {
   return (
@@ -16,15 +17,15 @@ export default function App() {
       <AuthProvider>
         <Toaster />
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/" element={<Layout />}>
+          <Route path="/app" element={<Layout />}>
             <Route path="chat" element={<ChatPage />} />
             <Route path="chat/:conversationId" element={<ChatPage />} />
-            <Route index element={<Navigate to="/chat" replace />} />
+            <Route index element={<Navigate to="/app/chat" replace />} />
           </Route>
-          <Route path="/memories" element={<MemorySpaceLayout><MemorySpacePage /></MemorySpaceLayout>} />
-          {/*<Route path="/memories/list" element={<MemorySpaceLayout><MemorySpaceListPage /></MemorySpaceLayout>} />*/}
+          <Route path="/app/memories" element={<MemorySpaceLayout><MemorySpacePage /></MemorySpaceLayout>} />
         </Routes>
       </AuthProvider>
       </BrowserRouter>

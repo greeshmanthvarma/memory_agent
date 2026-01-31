@@ -24,6 +24,7 @@ export default function ChatPage() {
   const isInitialLoadRef = useRef(false)
   const [isSummarizing,setIsSummarizing]=useState(false)
   const { refreshConversations } = useSidebar()
+  const [loadingMessages, setLoadingMessages]=useState(false)
 
   useEffect(()=>{
     async function initializeConversation(){
@@ -94,6 +95,7 @@ export default function ChatPage() {
     }
 
     async function fetchMessages(conversationId){
+      setLoadingMessages(true)
       try{
         const response = await fetch(`/api/chat/conversation/${conversationId}/messages`,{
           credentials:'include'
@@ -101,14 +103,17 @@ export default function ChatPage() {
         if(response.ok){
           const data=await response.json()
           setMessages(data.messages)
+          setLoadingMessages(false)
         }
         else{
+          setLoadingMessages(false)
           throw new Error('Failed to fetch messages')
+          
         }
       }
       catch(error){
-        console.error('Error fetching messages:', error)
-        setError('Failed to fetch messages')
+        setLoadingMessages(false)
+        toast.error('Failed to fetch messages')
       }
     }
   
@@ -146,7 +151,7 @@ export default function ChatPage() {
           setError('Failed to create conversation')
           return
         }
-        navigate(`/chat/${currentConversationId}`, { replace: true })
+        navigate(`/app/chat/${currentConversationId}`, { replace: true })
         refreshConversations()
       }
 
@@ -256,7 +261,14 @@ export default function ChatPage() {
           <div className="text-center text-3xl text-muted-foreground">
             Hello! Good to see you here.
           </div>
-        ) : (
+        ) : loadingMessages ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-muted-foreground">Loading messages...</p>
+            </div>
+          </div>
+        ) :(
           <div className="max-w-3xl mx-auto space-y-4">
             {messages.map((message) => (
               <div

@@ -37,7 +37,7 @@ export function LoginForm({
       if(response.ok){
         await refreshUser()
         toast.success('Login successful')
-        navigate('/') 
+        navigate('/app/chat') 
       }
       else{
         const errorData = await response.json().catch(() => ({}))

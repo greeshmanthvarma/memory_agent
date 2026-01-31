@@ -1,4 +1,4 @@
-import { GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle } from "@/components/ui/glass-dialog"
+import { GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle, GlassDialogDescription } from "@/components/ui/glass-dialog"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
 
@@ -24,16 +24,19 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
             <GlassDialogContent className="max-w-2xl">
                 <GlassDialogHeader>
                     <GlassDialogTitle className="text-lg">{memory.content}</GlassDialogTitle>
+                    <GlassDialogDescription className="sr-only">
+                        Memory details including summary, type, tags, and creation date
+                    </GlassDialogDescription>
                 </GlassDialogHeader>
                 <div className="flex flex-col gap-4 py-4">
                     {memory.summary_long && (
-                        <div>
+                        <div className="border-b">
                             <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Summary</h4>
-                            <p className="text-sm leading-relaxed">{memory.summary_long}</p>
+                            <p className="text-sm leading-relaxed pb-8">{memory.summary_long}</p>
                         </div>
                     )}
                     
-                    <div className="flex flex-wrap items-center gap-3 pt-2 border-t">
+                    <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">Type:</span>
                             <span className={`text-xs px-2 py-1 rounded-full ${
@@ -65,18 +68,22 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
                             </div>
                         )}
                         
-                        {memory.conversation_id && (
+                        {
+                        memory.memory_type === 'implicit' && !memory.conversation_id ? (
+                            <p className="text-xs text-muted-foreground">Conversation deleted</p>
+                        ):(
+                        memory.conversation_id && (
                             <Button
                                 variant="link"
                                 className="text-xs h-auto p-0 cursor-pointer"
                                 onClick={() => {
-                                    navigate(`/chat/${memory.conversation_id}`)
+                                    navigate(`/app/chat/${memory.conversation_id}`)
                                     onOpenChange(false)
                                 }}
                             >
                                 View Conversation
                             </Button>
-                        )}
+                        ))} 
                     </div>
                 </div>
             </GlassDialogContent>

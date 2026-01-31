@@ -1,8 +1,9 @@
 import { Settings, SquarePen, Bubbles, ChevronDown, BrainCog, NotebookPen, User2, ChevronUp, LogOut,UserRoundPen,Ellipsis,Pencil,Trash2} from "lucide-react"
-import { useState,useEffect } from "react"
+import { useState,useEffect, useRef } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Sidebar,
   SidebarContent,
@@ -44,10 +45,13 @@ export default function AppSidebar() {
   const [deleteConversationOpen, setDeleteConversationOpen] = useState(false)
   const [deleteConversationId, setDeleteConversationId] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [editingConversationTitle, setEditingConversationTitle] = useState('')
+  const [isUpdatingTitle, setIsUpdatingTitle] = useState(false)
+  const titleInputRef = useRef(null)
   const navigate = useNavigate()
   
-  const currentConversationId = location.pathname.startsWith('/chat/') 
-    ? parseInt(location.pathname.split('/chat/')[1]) 
+  const currentConversationId = location.pathname.startsWith('/app/chat/') 
+    ? parseInt(location.pathname.split('/app/chat/')[1]) 
     : null
   async function handleSignOut(){
     try{
@@ -58,7 +62,7 @@ export default function AppSidebar() {
       if(response.ok){
         setUser(null)
         toast.success('Signed out successfully')
-        navigate('/login')
+        navigate('/')
       }else{
         toast.error('Failed to sign out')
       }
@@ -85,7 +89,7 @@ export default function AppSidebar() {
         await refreshConversations()
         
         if (currentConversationId === conversationId) {
-          navigate('/chat')
+          navigate('/app/chat')
         }
       } else {
         const errorData = await response.json().catch(() => ({}))
@@ -97,6 +101,57 @@ export default function AppSidebar() {
       setIsDeleting(false)
     }
   }
+
+  async function editConversationTitle(conversationId, title) {
+    if (!title || !title.trim()) {
+      toast.error('Title cannot be empty')
+      return
+    }
+    
+    setIsUpdatingTitle(true)
+    try {
+      const response = await fetch(`/api/chat/conversation/${conversationId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title: title.trim() })
+      })
+      if (response.ok) {
+        toast.success('Conversation title updated successfully')
+        setEditingConversationId(null)
+        setEditingConversationTitle('')
+        await refreshConversations()
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || 'Failed to update conversation title')
+      }
+    } catch (error) {
+      toast.error('Failed to update conversation title: ' + error.message)
+    } finally {
+      setIsUpdatingTitle(false)
+    }
+  }
+
+  function handleStartEdit(conversation) {
+    setEditingConversationId(conversation.id)
+    setEditingConversationTitle(conversation.title || `Chat ${conversation.id}`)
+    setTimeout(() => {
+      if (titleInputRef.current) {
+        titleInputRef.current.focus() //focus the input
+        titleInputRef.current.select() //select the text in the input
+      }
+    }, 0)
+  }
+
+  function handleCancelEdit() {
+    setEditingConversationId(null)
+    setEditingConversationTitle('')
+  }
+
+ 
+  
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className={`flex-row items-center p-4 ${state === "expanded" ? "justify-between" : "justify-center"}`}>
@@ -116,7 +171,7 @@ export default function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/chat">
+                  <Link to="/app/chat">
                     <SquarePen />
                     <span>
                        New Chat
@@ -144,7 +199,7 @@ export default function AppSidebar() {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild>
-                          <Link to="/memories">
+                          <Link to="/app/memories">
                             <BrainCog/>
                             <span>Memory Space</span>
                           </Link>
@@ -174,7 +229,7 @@ export default function AppSidebar() {
                       className="w-[--radix-popper-anchor-width]"
                     >
                       <DropdownMenuItem asChild>
-                        <Link to="/memories" className="cursor-pointer">
+                        <Link to="/app/memories" className="cursor-pointer">
                           <BrainCog className="mr-2 h-4 w-4" />
                           <span>Memory Space</span>
                         </Link>
@@ -208,11 +263,41 @@ export default function AppSidebar() {
                         }
                       }}
                     >
-                      <SidebarMenuButton asChild className="flex-1">
-                        <Link to={`/chat/${conversation.id}`}>
-                          <span>{conversation.title || `Chat ${conversation.id}`}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                      {editingConversationId === conversation.id ? (
+                        <Input 
+                          ref={titleInputRef}
+                          type="text" 
+                          value={editingConversationTitle} 
+                          onChange={(e) => setEditingConversationTitle(e.target.value)} 
+                          onBlur={() => {
+                            if (editingConversationTitle.trim() && editingConversationTitle !== (conversation.title || '' || `Chat ${conversation.id}`)) {
+                              editConversationTitle(conversation.id, editingConversationTitle)
+                            } else {
+                              handleCancelEdit()
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (editingConversationTitle.trim()) {
+                                editConversationTitle(conversation.id, editingConversationTitle)
+                              }
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault()
+                              handleCancelEdit()
+                            }
+                          }}
+                          disabled={isUpdatingTitle}
+                          className="flex-1"
+                          placeholder="Enter title..."
+                        />
+                      ) : (
+                        <SidebarMenuButton asChild className="flex-1">
+                          <Link to={`/app/chat/${conversation.id}`}>
+                            <span>{conversation.title || `Chat ${conversation.id}`}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      )}
                       {hoveredConversationId === conversation.id && (
                         <DropdownMenu 
                           onOpenChange={(open) => {
@@ -238,14 +323,11 @@ export default function AppSidebar() {
                             onMouseLeave={() => setHoveredConversationId(null)}
                           >
                             <DropdownMenuItem 
-                              onClick={() => {
-                                setEditingConversationId(conversation.id)
-                                toast.info('Edit title feature coming soon')
-                              }} 
+                              onClick={() => handleStartEdit(conversation)} 
                               className="cursor-pointer"
                             >
                               <Pencil className="mr-2 h-4 w-4"/>
-                              <span>Edit Title</span>
+                              <span>Rename</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               onClick={() => {

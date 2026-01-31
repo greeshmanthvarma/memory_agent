@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle, GlassDialogFooter } from "@/components/ui/glass-dialog"
+import { GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle, GlassDialogDescription, GlassDialogFooter } from "@/components/ui/glass-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -60,6 +60,9 @@ export default function EditProfileDialog({ open, onOpenChange }) {
             <GlassDialogContent>
                 <GlassDialogHeader>
                     <GlassDialogTitle>Edit Profile</GlassDialogTitle>
+                    <GlassDialogDescription className="sr-only">
+                        Update your username and profile picture URL
+                    </GlassDialogDescription>
                 </GlassDialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="flex flex-col gap-4 py-4">

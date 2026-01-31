@@ -5,7 +5,7 @@ export default function MemoryBubble({memory, onClick}){
 
     const {path,duration,rotation} = useMemo(()=>{
         
-        const radisuX = 15+ Math.random() * 20
+        const radiusX = 15+ Math.random() * 20
         const radiusY = 15+ Math.random() * 20
         const points = 16  
         const startAngle= Math.random() * Math.PI * 2
@@ -13,7 +13,7 @@ export default function MemoryBubble({memory, onClick}){
         const y = []
         for(let i=0; i<=points; i++){
             const angle = startAngle + (i/points) * Math.PI * 2
-            x.push(Math.cos(angle) * radisuX)
+            x.push(Math.cos(angle) * radiusX)
             y.push(Math.sin(angle) * radiusY)
         }
         return {

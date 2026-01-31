@@ -1,4 +1,4 @@
-import {GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle, GlassDialogFooter} from "@/components/ui/glass-dialog"
+import {GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle, GlassDialogDescription, GlassDialogFooter} from "@/components/ui/glass-dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -62,6 +62,9 @@ export default function LogMemoryDialog({ open, onOpenChange }) {
             <GlassDialogContent>
                 <GlassDialogHeader>
                     <GlassDialogTitle>Log Memory</GlassDialogTitle>
+                    <GlassDialogDescription className="sr-only">
+                        Enter a memory to save. It will be checked for duplicates before saving.
+                    </GlassDialogDescription>
                 </GlassDialogHeader>
                 <div className="flex flex-col gap-4 py-4">
                     <Textarea 

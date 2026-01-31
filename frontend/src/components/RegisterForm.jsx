@@ -44,7 +44,7 @@ export function RegisterForm({
       if(response.ok){
         await refreshUser()
         toast.success('Registration successful')
-        navigate('/') 
+        navigate('/app/chat') 
       }
       else{
         const errorData = await response.json().catch(() => ({}))
