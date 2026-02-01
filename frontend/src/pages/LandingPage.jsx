@@ -237,12 +237,18 @@ export default function LandingPage(){
                         onMouseEnter={() => setIsChatHovered(true)}
                         onMouseLeave={() => setIsChatHovered(false)}
                     >
-                        <p className="text-2xl font-bold text-center line-clamp-2 mb-2 mt-6">
-                            Chat with context
-                        </p>
-                        <p className="text-sm text-muted-foreground text-center mb-4 px-4">
-                            The AI uses your memories when needed to personalize responses.
-                        </p>
+                        <motion.div 
+                        animate={{ opacity: isChatHovered ? 0.5 : 1 , filter: isChatHovered ? 'blur(2px)' : 'blur(0px)' }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        >
+                            <p className="text-2xl font-bold text-center line-clamp-2 mb-2 mt-6">
+                                Chat with context
+                            </p>
+                            <p className="text-sm text-muted-foreground text-center mb-4 px-4">
+                                The AI uses your memories when needed to personalize responses.
+                            </p>
+                        </motion.div>
+                        
                         <div className="flex-1 w-full mt-10 flex flex-col gap-4">
                             <motion.div
                                 className="flex justify-end w-full"
@@ -344,7 +350,7 @@ export default function LandingPage(){
                     </motion.div>
                     <motion.div variants={bentoItem} className="col-start-2 row-start-2 flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-4 mr-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
                         <p className="text-lg font-semibold text-center">Semantic search</p>
-                        <p className="text-xs text-muted-foreground text-center">Powered by RAG, find by relevant memories by meaning</p>
+                        <p className="text-xs text-muted-foreground text-center">Powered by RAG, find relevant memories by meaning</p>
                     </motion.div>
                     <motion.div variants={bentoItem} className="col-start-3 row-start-2 flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-4 ml-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
                         <p className="text-lg font-semibold text-center">Log memories manually</p>

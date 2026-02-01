@@ -207,15 +207,3 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 Set `CORS_ORIGINS` to your frontend URL. For production, use `COOKIE_SECURE=true` for cookies when serving over HTTPS.
 
-## Migrations
-
-**Qdrant collection naming (username → user_id)**
-
-If you have existing users created when collections were named `{username}_memories`, run this once to migrate to `user_{user_id}_memories`:
-
-```bash
-cd backend
-uv run python -m scripts.migrate_collections_to_user_id
-```
-
-The script copies all points from the old collection to the new one, updates the user’s `collection_name` in the DB, then deletes the old collection. Safe to re-run (skips users already on the new format).
