@@ -135,7 +135,7 @@ export default function LandingPage(){
                 ))}
             </motion.div>
                 <motion.div
-                className="absolute top-3 sm:top-4 w-full flex justify-between px-2 sm:px-4"
+                className="absolute top-3 sm:top-4 w-full flex justify-between items-center gap-1 px-2 sm:px-4 min-w-0"
                 initial={{ opacity: 0, filter: 'blur(10px)' }}
                 animate={{ opacity: 1, filter: 'blur(0px)' }}
                 transition={{ 
@@ -144,13 +144,13 @@ export default function LandingPage(){
                     delay: 0.5
                  }}
                 >
-                    <div className="flex items-center justify-center gap-2 px-4">
-                        <p className="text-xl sm:text-xl sm:text-2xl font-bold text-neutral-700 dark:text-white">Coherence</p>
+                    <div className="flex min-w-0 shrink items-center justify-center px-1 sm:px-4">
+                        <p className="text-xl sm:text-2xl font-bold text-neutral-700 dark:text-white truncate">Coherence</p>
                     </div>
                     
-                <div className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4">
+                <div className="flex shrink-0 items-center justify-center gap-1 sm:gap-2 pl-1">
                     <Link to="/register">
-                        <Button size="sm" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">
+                        <Button size="sm" className="cursor-pointer text-xs sm:text-sm h-7 sm:h-9 px-1.5 sm:px-4">
                             Get started
                         </Button>
                     </Link>
@@ -160,9 +160,10 @@ export default function LandingPage(){
                         </Button>
                     </Link>
                     <a href="https://github.com/greeshmanthvarma/memory_agent" target="_blank" rel="noopener noreferrer">
-                        <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">
-                            GitHub
-                            <ExternalLinkIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4"/>
+                        <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-7 sm:h-9 px-1.5 sm:px-4">
+                            <span className="sm:hidden">Git</span>
+                            <span className="hidden sm:inline">GitHub</span>
+                            <ExternalLinkIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5 hidden sm:inline" />
                         </Button>
                     </a>
                     <button

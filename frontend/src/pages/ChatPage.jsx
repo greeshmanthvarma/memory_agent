@@ -7,7 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {toast} from "sonner"
 import ReactMarkdown from "react-markdown"
 import { Button } from '@/components/ui/button'
-import { useSidebar } from '@/components/ui/sidebar'
+import { useSidebar, SidebarTrigger } from '@/components/ui/sidebar'
 
 export default function ChatPage() {
   const { theme, toggleTheme } = useTheme()
@@ -236,6 +236,9 @@ export default function ChatPage() {
   <div className="flex flex-col h-full">
     <div className="sticky top-0 z-10 flex justify-between items-center px-4 py-2 border-b border-border/40">
       <div className="flex items-center gap-2">
+        <div className="md:hidden shrink-0">
+          <SidebarTrigger />
+        </div>
         {
           conversationId && messages.length > 0 && (
             <Button 
