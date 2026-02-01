@@ -12,6 +12,9 @@ from typing import List
 import uuid
 import jwt
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 auth_router = APIRouter(
     prefix="/api/auth",
@@ -86,6 +89,7 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
                 delete_collection(collection_name=created_collection)
             except Exception:
                 pass
+        logger.exception("Registration failed")
         raise HTTPException(status_code=500, detail=f"Registration Failed: {str(e)}")
 
 @auth_router.post("/login")

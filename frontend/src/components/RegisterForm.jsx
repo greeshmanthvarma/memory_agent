@@ -48,7 +48,8 @@ export function RegisterForm({
       }
       else{
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to register')
+        const msg = Array.isArray(errorData.detail) ? errorData.detail[0]?.msg ?? errorData.detail : errorData.detail
+        throw new Error(msg || 'Failed to register')
       }
     }
     catch(err){

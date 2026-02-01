@@ -59,6 +59,7 @@ User -> Frontend (React) -> Backend (FastAPI) -> PostgreSQL (users, memories, co
 ```
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname
 QDRANT_URL=http://localhost:6333
+# Qdrant Cloud: set QDRANT_API_KEY (from cluster API Keys in dashboard)
 OPENAI_API_KEY=your_openai_api_key
 JWT_SECRET=your_jwt_secret
 CORS_ORIGINS=http://localhost:5173
@@ -167,6 +168,7 @@ memory agent/
 │   ├── requirements.txt
 │   └── pyproject.toml
 ├── frontend/
+│   ├── middleware.js        # Edge Middleware: proxies /api/* to BACKEND_URL (Vercel)
 │   ├── src/
 │   │   ├── App.jsx
 │   │   ├── AuthContext.jsx
@@ -208,4 +210,7 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Set `CORS_ORIGINS` to your frontend URL. For production, use `COOKIE_SECURE=true` for cookies when serving over HTTPS.
+
+**Deploying frontend (Vercel)**  
+Import the repo in Vercel, set **Root Directory** to `frontend`, and add env var `BACKEND_URL` (your backend origin, e.g. Elastic Beanstalk). The frontend proxies `/api/*` via Edge Middleware, so no backend URL is stored in the repo. On the backend, set `CORS_ORIGINS` to your Vercel URL (e.g. `https://your-app.vercel.app`).
 

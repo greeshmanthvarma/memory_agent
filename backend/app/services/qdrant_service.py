@@ -2,12 +2,16 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList, Filter, FieldCondition, MatchValue
 import uuid
 from dotenv import load_dotenv
-
 import os
 
 load_dotenv()
 
-qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
+_qdrant_url = os.getenv("QDRANT_URL")
+_qdrant_api_key = os.getenv("QDRANT_API_KEY")
+qdrant_client = QdrantClient(
+    url=_qdrant_url,
+    api_key=_qdrant_api_key if _qdrant_api_key else None,
+)
 
 def create_collection(name: str = "memories", vector_size: int = 1536):
     try:

@@ -10,14 +10,14 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 DB_ECHO = os.getenv("DB_ECHO", "false").lower() == "true"
 
-# asyncpg does not accept URL query params like sslmode/channel_binding; it uses ssl=True. Strip entire query string and pass ssl in connect_args for Neon.
-_original_url = os.getenv("DATABASE_URL") or ""
+_original_url = (os.getenv("DATABASE_URL") or "").strip()
 _connect_args = {}
-if "neon.tech" in _original_url or "sslmode=require" in _original_url:
-    _connect_args["ssl"] = True
+if _original_url:
     _url = urlparse(_original_url)
-    # Remove query string so SQLAlchemy/asyncpg don't get sslmode, channel_binding, etc.
-    DATABASE_URL = urlunparse(_url._replace(query=""))
+    if _url.query:
+        DATABASE_URL = urlunparse(_url._replace(query=""))
+    if "neon.tech" in _original_url or "sslmode=require" in _original_url.lower():
+        _connect_args["ssl"] = True
 
 engine = create_async_engine(
     DATABASE_URL,
