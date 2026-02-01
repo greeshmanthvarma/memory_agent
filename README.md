@@ -2,14 +2,16 @@
 
 Coherence is a personal memory agent that persists context across conversations. Log memories manually, extract them from chat, and surface them when relevant—powered by semantic search and RAG (Retrieval-Augmented Generation).
 
+**[Live demo](https://coherence-agent.vercel.app)** 
+
 ## Features
 
-- **Persistent memory**: Store explicit memories (manually logged) and implicit memories (extracted from conversations)
-- **Semantic search**: Memories are embedded and retrieved by meaning, not exact keyword match
-- **Context-aware chat**: The AI uses your memories to personalize responses via function calling
-- **Conversation summarization**: Extract durable facts, preferences, and events from chat into long-term memory
-- **Duplicate detection**: Deduplication by exact match and semantic similarity (facts and preferences; events are always stored)
-- **Memory Space**: Browse memories in bubble or list view, view details and linked conversations
+- **Persistent memory** – Log memories manually (explicit) or have the app extract them from conversations (implicit). Both are stored long-term so the AI can refer to them later.
+- **Semantic search** – Memories are embedded and retrieved by *meaning*, not exact words (e.g. “I like hiking” can surface when you ask about outdoor activities).
+- **Context-aware chat** – The model can call a `search_memories` tool during a conversation; relevant memories are injected into the prompt so replies stay personalized.
+- **Conversation summarization** – Summarize a chat to extract durable facts, preferences, and events into long-term memory, with deduplication.
+- **Duplicate detection** – Facts and preferences are deduplicated by exact match and semantic similarity; events are stored as separate memories.
+- **Memory Space** – Browse all memories in bubble or list view, open details, and see which conversations a memory came from.
 
 ## Tech Stack
 
@@ -32,6 +34,8 @@ Coherence is a personal memory agent that persists context across conversations.
 
 ## Architecture
 
+The app is a full-stack SPA: the frontend talks only to the backend over REST; the backend owns all access to PostgreSQL, Qdrant, and OpenAI.
+
 ```
 User -> Frontend (React) -> Backend (FastAPI) -> PostgreSQL (users, memories, conversations, messages)
                                         |
@@ -40,9 +44,13 @@ User -> Frontend (React) -> Backend (FastAPI) -> PostgreSQL (users, memories, co
                                         +-> OpenAI (chat, embeddings, summarization)
 ```
 
-- Each user has a dedicated Qdrant collection (`user_{user_id}_memories`) for their memory embeddings
-- Memories are stored in PostgreSQL (metadata, content, tags) and Qdrant (embeddings, user_id)
-- Chat uses a `search_memories` tool that queries Qdrant by semantic similarity and injects relevant memories into the prompt
+**Request flow** – The browser sends requests to `/api/*` (auth, chat, memory). The backend validates the JWT cookie, then calls the right service (DB, Qdrant, or OpenAI). Chat and summarization use the LLM; memory search uses embeddings and Qdrant.
+
+**Why two stores** – PostgreSQL holds structured, queryable data (users, memory metadata, content, tags, conversations, messages). Qdrant holds only vector embeddings and a `user_id` for filtering. Semantic search runs in Qdrant; the backend then joins back to PostgreSQL for full memory records.
+
+**How chat uses memories** – The chat endpoint gives the model a `search_memories` tool. When the model decides it needs past context, it calls the tool with a query string. The backend embeds the query, runs a similarity search in Qdrant (scoped to the user’s collection), and returns the top matches. Those memories are added to the prompt as context, and the model generates a reply. So personalization is driven by tool use, not a fixed retrieval step.
+
+**User isolation** – Each user has their own Qdrant collection (`user_{user_id}_memories`). All memory search is filtered by `user_id` so one user never sees another’s data.
 
 ## Prerequisites
 
@@ -67,9 +75,10 @@ CORS_ORIGINS=http://localhost:5173
 # Optional: DB_ECHO=true to log SQL (default: false)
 ```
 
-**Frontend**: No environment variables required for local development. The Vite dev server proxies `/api` to the backend.
+- **Neon (or any URL with query params)**: The app strips the query string from `DATABASE_URL` and sets `ssl=True` in `connect_args` so asyncpg does not receive unsupported params (e.g. `channel_binding`).
+- **Qdrant**: A payload index on `user_id` is created when needed (on collection create and before filtered search) so filters work on Qdrant Cloud.
 
-- **Vercel**: Set `BACKEND_URL` (e.g. `https://your-app.elasticbeanstalk.com`) in Project → Settings → Environment Variables. The frontend uses Edge Middleware to proxy `/api/*` to this URL so the backend URL is not stored in the repo.
+**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. The live demo is hosted on Vercel and proxies API requests to the backend (no backend URL in the repo).
 
 ## Installation
 
@@ -116,6 +125,8 @@ npm run dev
 
 4. Open http://localhost:5173
 
+To try the app without running it locally, use the [live demo](https://coherence-agent.vercel.app) above.
+
 ## API Overview
 
 **Auth** (`/api/auth`)
@@ -147,8 +158,8 @@ npm run dev
 memory agent/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py           # FastAPI app, CORS, startup
-│   │   ├── database.py       # Async SQLAlchemy engine, session
+│   │   ├── main.py           # FastAPI app, CORS, global 500 handler, startup
+│   │   ├── database.py       # Async SQLAlchemy engine, session; strips URL query for Neon/asyncpg
 │   │   ├── db_models.py      # SQLAlchemy models
 │   │   ├── models.py         # Pydantic schemas
 │   │   ├── middleware/
@@ -165,10 +176,15 @@ memory agent/
 │   │       ├── memory_service.py
 │   │       ├── qdrant_service.py
 │   │       └── tools.py      # search_memories tool for chat
+│   ├── Procfile             # web: uvicorn app.main:app --host 0.0.0.0 --port 8000
 │   ├── requirements.txt
 │   └── pyproject.toml
 ├── frontend/
-│   ├── middleware.js        # Edge Middleware: proxies /api/* to BACKEND_URL (Vercel)
+│   ├── api/
+│   │   ├── chat.js          # Serverless proxy for POST /api/chat (60s timeout)
+│   │   └── memory.js        # Serverless proxy for GET /api/memory (60s timeout)
+│   ├── middleware.js        # Edge Middleware: pass-through for chat/memory list; proxy rest of /api/* to BACKEND_URL
+│   ├── vercel.json          # functions (maxDuration 60), rewrites (SPA fallback to index.html)
 │   ├── src/
 │   │   ├── App.jsx
 │   │   ├── AuthContext.jsx
@@ -190,27 +206,3 @@ memory agent/
 │   └── vite.config.js
 └── README.md
 ```
-
-## Build for Production
-
-**Frontend**
-
-```bash
-cd frontend
-npm run build
-```
-
-Serves static files from `frontend/dist`. Point your web server to this directory and ensure `/api` is proxied to the backend.
-
-**Backend**
-
-```bash
-cd backend
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-Set `CORS_ORIGINS` to your frontend URL. For production, use `COOKIE_SECURE=true` for cookies when serving over HTTPS.
-
-**Deploying frontend (Vercel)**  
-Import the repo in Vercel, set **Root Directory** to `frontend`, and add env var `BACKEND_URL` (your backend origin, e.g. Elastic Beanstalk). The frontend proxies `/api/*` via Edge Middleware, so no backend URL is stored in the repo. On the backend, set `CORS_ORIGINS` to your Vercel URL (e.g. `https://your-app.vercel.app`).
-
