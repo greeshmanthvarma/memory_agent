@@ -6,12 +6,11 @@ Coherence is a personal memory agent that persists context across conversations.
 
 ## Features
 
-- **Persistent memory** – Log memories manually (explicit) or have the app extract them from conversations (implicit). Both are stored long-term so the AI can refer to them later.
-- **Semantic search** – Memories are embedded and retrieved by *meaning*, not exact words (e.g. “I like hiking” can surface when you ask about outdoor activities).
-- **Context-aware chat** – The model can call a `search_memories` tool during a conversation; relevant memories are injected into the prompt so replies stay personalized.
-- **Conversation summarization** – Summarize a chat to extract durable facts, preferences, and events into long-term memory, with deduplication.
-- **Duplicate detection** – Facts and preferences are deduplicated by exact match and semantic similarity; events are stored as separate memories.
-- **Memory Space** – Browse all memories in bubble or list view, open details, and see which conversations a memory came from.
+- **Persistent memory** – Explicit (user-created) and implicit (extracted from chat) memories stored long-term
+- **Semantic retrieval** – Meaning-based search using embeddings (not keyword match)
+- **Tool-based RAG** – The model calls `search_memories` only when relevant
+- **Conversation summarization** – Extract durable facts, preferences, and events with deduplication
+- **Memory Space** – Browse, inspect, and trace memories back to conversations
 
 ## Tech Stack
 
@@ -19,7 +18,7 @@ Coherence is a personal memory agent that persists context across conversations.
 - FastAPI
 - PostgreSQL (SQLAlchemy async)
 - Qdrant (vector database for embeddings)
-- OpenAI (GPT-4 for chat, text-embedding-3-small for embeddings)
+- OpenAI (GPT-4o mini for chat, text-embedding-3-small for embeddings)
 - JWT authentication (httpOnly cookies)
 - Argon2 password hashing
 
@@ -51,6 +50,15 @@ User -> Frontend (React) -> Backend (FastAPI) -> PostgreSQL (users, memories, co
 **How chat uses memories** – The chat endpoint gives the model a `search_memories` tool. When the model decides it needs past context, it calls the tool with a query string. The backend embeds the query, runs a similarity search in Qdrant (scoped to the user’s collection), and returns the top matches. Those memories are added to the prompt as context, and the model generates a reply. So personalization is driven by tool use, not a fixed retrieval step.
 
 **User isolation** – Each user has their own Qdrant collection (`user_{user_id}_memories`). All memory search is filtered by `user_id` so one user never sees another’s data.
+
+## Deployment
+
+- Frontend deployed on Vercel (SPA + serverless API proxy)
+- Backend deployed on AWS Elastic Beanstalk
+- PostgreSQL hosted on Neon (TLS, asyncpg)
+- Qdrant Cloud for vector search
+
+The frontend never talks directly to databases or OpenAI; all access is mediated by the backend.
 
 ## Prerequisites
 
@@ -206,3 +214,22 @@ memory agent/
 │   └── vite.config.js
 └── README.md
 ```
+
+## What's next
+
+- **Streaming chat** – Stream LLM tokens as they’re generated so responses appear incrementally and avoid long proxy timeouts.
+- **Edit / delete memories** – Let users update or remove memories from Memory Space.
+- **Export memories** – Export memories (e.g. JSON or markdown) for backup or portability.
+- **Stronger dedup** – Tune similarity thresholds and add merge/merge-prompt for near-duplicate facts and preferences.
+
+### Phase 2 (integrations)
+
+- **Google Calendar** – Sync events (meetings, reminders, occasions) into memories so the agent can reference past and upcoming events in conversation (OAuth2 + Calendar API).
+- **Google Photos** – Ingest photo metadata (dates, albums, locations) or use vision to describe photos and create memories (e.g. “Trip to X”, “Family gathering”) via Photos Library API and optional vision model.
+
+Phase 2 adds *more tools*: the model can call Calendar and Photos when the user asks. The flow stays reactive (user asks → model uses tools → reply).
+
+### Phase 3 (agentic)
+
+- Phase 3 introduces an agent loop with planning, tool chaining, and recovery rather than single-turn tool calls.
+
