@@ -24,10 +24,17 @@ export default function MemorySpacePage() {
     setSelectedMemory(memory)
     setIsDialogOpen(true)
   }
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false)
+      navigate('/', { replace: true })
+      return
+    }
+  }, [user, navigate])
+
   useEffect(()=>{
     async function fetchMemories(){
       if(!user){
-        toast.error('Please login to continue')
         setIsLoading(false)
         return
       }

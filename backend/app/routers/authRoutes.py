@@ -9,6 +9,7 @@ from app.middleware.auth import get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+import uuid
 import jwt
 import os
 
@@ -31,63 +32,60 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
         if existing_user:
             raise HTTPException(status_code=400, detail="User already exists")
 
-        try:
-            create_collection(name=f"{user.username}_memories")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"{str(e)}")
-
+        created_collection = None
         new_user = UserModel(
             email=user.email,
             username=user.username,
             password=hash_password(user.password),
-            collection_name=f"{user.username}_memories",
+            collection_name=f"pending_{uuid.uuid4().hex}",
         )
-
-        
-
         db.add(new_user)
+        await db.flush()
+
+        coll_name = f"user_{new_user.id}_memories"
+        try:
+            create_collection(name=coll_name)
+            created_collection = coll_name
+        except Exception as e:
+            await db.rollback()
+            raise HTTPException(status_code=500, detail=f"{str(e)}")
+
+        new_user.collection_name = coll_name
         await db.commit()
         await db.refresh(new_user)
-        
-        
+
+
 
         jwt_token = jwt.encode({"user_id": new_user.id}, jwt_secret, algorithm="HS256")
 
        
         response = JSONResponse(content={"message": "Registration successful"})
+        secure_cookie = os.getenv("COOKIE_SECURE", "false").lower() == "true"
         response.set_cookie(
             key="token",
             value=jwt_token,
             httponly=True,
-            secure=False,
+            secure=secure_cookie,
             max_age=86400,
             samesite="lax"
         )
         
         return response
     except HTTPException:
-        if new_user and new_user.id:
+        await db.rollback()
+        if created_collection:
             try:
-                await db.delete(new_user)
-                await db.commit()
-            except:
-                await db.rollback()
-        try:
-            delete_collection(collection_name=f"{user.username}_memories")
-        except:
-            pass
+                delete_collection(collection_name=created_collection)
+            except Exception:
+                pass
         raise
     except Exception as e:
-        if new_user and new_user.id:
+        await db.rollback()
+        if created_collection:
             try:
-                await db.delete(new_user)
-                await db.commit()
-            except:
-                await db.rollback()
-        try:
-            delete_collection(collection_name=f"{user.username}_memories")
-        except:
-            pass
+                delete_collection(collection_name=created_collection)
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=f"Registration Failed: {str(e)}")
 
 @auth_router.post("/login")
@@ -109,11 +107,12 @@ async def login(user:UserLogin, db: AsyncSession = Depends(get_db)):
 
        
         response = JSONResponse(content={"message": "Login successful"})
+        secure_cookie = os.getenv("COOKIE_SECURE", "false").lower() == "true"
         response.set_cookie(
             key="token",
             value=jwt_token,
             httponly=True,
-            secure=False,
+            secure=secure_cookie,
             max_age=86400,
             samesite="lax"
         )
@@ -137,7 +136,7 @@ async def get_current_user_info(user: UserModel = Depends(get_current_user)):
 async def logout():
     try:
         response = JSONResponse(content={"message": "Logout successful"})
-        response.delete_cookie(key="token")
+        response.delete_cookie(key="token", path="/")
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Logout Failed: {str(e)}")

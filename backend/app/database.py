@@ -7,10 +7,11 @@ from fastapi import Depends
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+DB_ECHO = os.getenv("DB_ECHO", "false").lower() == "true"
 
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,  
+    echo=DB_ECHO,
     future=True,
 )
 

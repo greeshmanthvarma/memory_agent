@@ -40,7 +40,7 @@ User -> Frontend (React) -> Backend (FastAPI) -> PostgreSQL (users, memories, co
                                         +-> OpenAI (chat, embeddings, summarization)
 ```
 
-- Each user has a dedicated Qdrant collection (`user_{id}_memories`) for their memory embeddings
+- Each user has a dedicated Qdrant collection (`user_{user_id}_memories`) for their memory embeddings
 - Memories are stored in PostgreSQL (metadata, content, tags) and Qdrant (embeddings, user_id)
 - Chat uses a `search_memories` tool that queries Qdrant by semantic similarity and injects relevant memories into the prompt
 
@@ -62,6 +62,8 @@ QDRANT_URL=http://localhost:6333
 OPENAI_API_KEY=your_openai_api_key
 JWT_SECRET=your_jwt_secret
 CORS_ORIGINS=http://localhost:5173
+# Production (HTTPS): COOKIE_SECURE=true
+# Optional: DB_ECHO=true to log SQL (default: false)
 ```
 
 **Frontend**: No environment variables required for local development. The Vite dev server proxies `/api` to the backend.
@@ -203,4 +205,17 @@ cd backend
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Set `CORS_ORIGINS` to your frontend URL. For production, use `secure=True` for cookies when serving over HTTPS.
+Set `CORS_ORIGINS` to your frontend URL. For production, use `COOKIE_SECURE=true` for cookies when serving over HTTPS.
+
+## Migrations
+
+**Qdrant collection naming (username → user_id)**
+
+If you have existing users created when collections were named `{username}_memories`, run this once to migrate to `user_{user_id}_memories`:
+
+```bash
+cd backend
+uv run python -m scripts.migrate_collections_to_user_id
+```
+
+The script copies all points from the old collection to the new one, updates the user’s `collection_name` in the DB, then deletes the old collection. Safe to re-run (skips users already on the new format).

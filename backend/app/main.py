@@ -55,3 +55,9 @@ async def root():
     """Root endpoint"""
     return {"message": "Welcome to Memory Agent API"}
 
+
+@app.get("/health")
+async def health():
+    """Health check for load balancers and monitoring"""
+    return {"status": "ok"}
+

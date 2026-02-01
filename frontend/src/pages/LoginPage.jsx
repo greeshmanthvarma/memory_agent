@@ -1,8 +1,18 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LoginForm } from "@/components/LoginForm"
 import { Sun, Moon } from "lucide-react"
-import { useTheme } from '@/ThemeContext';
+import { useTheme } from '@/ThemeContext'
+import { useAuth } from '@/AuthContext'
+
 export default function LoginPage() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme()
+  const navigate = useNavigate()
+  const { user } = useAuth()
+
+  useEffect(() => {
+    if (user) navigate('/app/chat', { replace: true })
+  }, [user, navigate])
   return (
     <div className="min-h-svh w-full relative bg-background flex items-center justify-center p-6 md:p-10">
       <div className="absolute inset-0 pointer-events-none animate-pulse-radial bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.25),transparent_50%)] dark:bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.15),transparent_50%)] bg-center bg-no-repeat" />
