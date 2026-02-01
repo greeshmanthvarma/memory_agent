@@ -8,7 +8,7 @@ import os
 from app.routers.memoryRoutes import memory_router
 from app.routers.authRoutes import auth_router
 from app.routers.chatRoutes import chat_router
-# Load environment variables from .env file
+
 load_dotenv()
 
 app = FastAPI(
@@ -17,7 +17,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS - allow origins from environment variable or default to localhost:5173 (Vite dev server)
+
 cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:5173")
 cors_origins = [origin.strip() for origin in cors_origins_env.split(",")]
 app.add_middleware(

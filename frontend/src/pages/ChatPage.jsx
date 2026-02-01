@@ -22,6 +22,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
   const isInitialLoadRef = useRef(false)
+  const loadedConversationIdRef = useRef(null)
   const [isSummarizing,setIsSummarizing]=useState(false)
   const { refreshConversations } = useSidebar()
   const [loadingMessages, setLoadingMessages]=useState(false)
@@ -36,12 +37,20 @@ export default function ChatPage() {
       if(!conversationId){
         setConversation(null)
         setMessages([])
+        setLoadingMessages(false)
+        loadedConversationIdRef.current = null
         return
       }
 
+      
+      if (String(loadedConversationIdRef.current) !== String(conversationId)) {
+        setLoadingMessages(true)
+      }
       isInitialLoadRef.current = true
       await fetchConversation(conversationId)
       await fetchMessages(conversationId)
+      loadedConversationIdRef.current = conversationId
+      setLoadingMessages(false)
     }
     initializeConversation()
   },[user, conversationId])
@@ -95,7 +104,6 @@ export default function ChatPage() {
     }
 
     async function fetchMessages(conversationId){
-      setLoadingMessages(true)
       try{
         const response = await fetch(`/api/chat/conversation/${conversationId}/messages`,{
           credentials:'include'
@@ -103,10 +111,8 @@ export default function ChatPage() {
         if(response.ok){
           const data=await response.json()
           setMessages(data.messages)
-          setLoadingMessages(false)
         }
         else{
-          setLoadingMessages(false)
           throw new Error('Failed to fetch messages')
           
         }
@@ -151,6 +157,7 @@ export default function ChatPage() {
           setError('Failed to create conversation')
           return
         }
+        loadedConversationIdRef.current = currentConversationId
         navigate(`/app/chat/${currentConversationId}`, { replace: true })
         refreshConversations()
       }
