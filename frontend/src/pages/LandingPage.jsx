@@ -135,7 +135,7 @@ export default function LandingPage(){
                 ))}
             </motion.div>
                 <motion.div
-                className="absolute top-4 w-full flex justify-between"
+                className="absolute top-3 sm:top-4 w-full flex justify-between px-2 sm:px-4"
                 initial={{ opacity: 0, filter: 'blur(10px)' }}
                 animate={{ opacity: 1, filter: 'blur(0px)' }}
                 transition={{ 
@@ -145,35 +145,35 @@ export default function LandingPage(){
                  }}
                 >
                     <div className="flex items-center justify-center gap-2 px-4">
-                        <p className="text-2xl font-bold text-neutral-700 dark:text-white">Coherence</p>
+                        <p className="text-xl sm:text-xl sm:text-2xl font-bold text-neutral-700 dark:text-white">Coherence</p>
                     </div>
                     
-                <div className=" flex items-center justify-center gap-2 px-4">
+                <div className="flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4">
                     <Link to="/register">
-                        <Button className="cursor-pointer">
+                        <Button size="sm" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">
                             Get started
                         </Button>
                     </Link>
                     <Link to="/login">
-                        <Button variant="outline" className="cursor-pointer">
+                        <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">
                             Sign in
                         </Button>
                     </Link>
                     <a href="https://github.com/greeshmanthvarma/memory_agent" target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" className="cursor-pointer">
+                        <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">
                             GitHub
-                            <ExternalLinkIcon/>
+                            <ExternalLinkIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4"/>
                         </Button>
                     </a>
                     <button
                         onClick={toggleTheme}
-                        className="p-2 rounded-full cursor-pointer bg-white/30 dark:bg-gray-900/50 backdrop-blur-xl border border-white/30 dark:border-white/10 hover:bg-white/40 dark:hover:bg-gray-900/60 transition-all"
+                        className="p-1.5 sm:p-2 rounded-full cursor-pointer bg-white/30 dark:bg-gray-900/50 backdrop-blur-xl border border-white/30 dark:border-white/10 hover:bg-white/40 dark:hover:bg-gray-900/60 transition-all"
                         aria-label="Toggle theme"
                     >
                         {theme === 'dark' ? (
-                        <Sun className="w-5 h-5 text-black dark:text-white" />
+                        <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-black dark:text-white" />
                         ) : (
-                        <Moon className="w-5 h-5 text-black dark:text-white" />
+                        <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-black dark:text-white" />
                         )}
                     </button>
                     </div>
@@ -186,7 +186,7 @@ export default function LandingPage(){
                     ease: 'easeOut',
                     delay: 0.3
                  }}
-                className="relative z-10 flex items-center justify-center w-full max-w-6xl mx-auto px-4">
+                className="relative z-10 flex items-center justify-center w-full max-w-6xl mx-auto px-3 sm:px-4">
                     <div className="flex flex-col items-center justify-center gap-4 flex-1 min-w-0">
                     <h1 className="text-2xl px-4 md:text-4xl lg:text-5xl font-bold text-neutral-700 dark:text-white max-w-4xl leading-relaxed lg:leading-snug text-center mx-auto">
                         An AI that{' '}
@@ -208,13 +208,13 @@ export default function LandingPage(){
                         </span>{' '}
                         across conversations.
                     </h1>
-                    <p className="text-md text-neutral-500 dark:text-neutral-400 max-w-2xl text-center mx-auto">
+                    <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-2xl text-center mx-auto">
                         Persistent memory powered by semantic search and intelligent recall.
                     </p>
                     <Button
                         size="lg"
                         variant="outline"
-                        className="mt-4 cursor-pointer"
+                        className="mt-3 sm:mt-4 cursor-pointer text-sm sm:text-base"
                         onClick={handleTryDemo}
                         disabled={isDemoLoading}
                     >
@@ -226,14 +226,14 @@ export default function LandingPage(){
             <section className="w-full max-w-7xl mx-auto px-4 mt-24 md:mt-32 mb-24 md:mb-32">
                 <motion.div
                     ref={bentoRef}
-                    className="grid grid-cols-3 grid-rows-[12rem_18rem] gap-2"
+                    className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-[12rem_18rem] gap-2"
                     initial="hidden"
                     animate={isBentoInView ? 'show' : 'hidden'}
                     variants={bentoContainer}
                 >
                     <motion.div
                         variants={bentoItem}
-                        className="row-span-2 min-w-[12rem] w-[24rem] flex flex-col items-center justify-center backdrop-blur-xl border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
+                        className="w-full min-h-[18rem] md:row-span-2 md:min-w-[12rem] md:w-[24rem] md:min-h-0 flex flex-col items-center justify-center backdrop-blur-xl border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
                         onMouseEnter={() => setIsChatHovered(true)}
                         onMouseLeave={() => setIsChatHovered(false)}
                     >
@@ -278,7 +278,7 @@ export default function LandingPage(){
                     variants={bentoItem}
                     onMouseEnter={() => setIsSummaryHovered(true)}
                     onMouseLeave={() => setIsSummaryHovered(false)}
-                    className="col-span-2 relative flex items-center justify-center h-[12rem] w-full border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
+                    className="md:col-span-2 relative flex items-center justify-center min-h-[12rem] md:h-[12rem] w-full border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
                                 <motion.p 
                                 initial={{ opacity: 1, filter: 'blur(0px)' }}
                                 animate={{ opacity: isSummaryHovered ? 0.2 : 1 , filter: isSummaryHovered ? 'blur(2px)' : 'blur(0px)' }}
@@ -348,11 +348,11 @@ export default function LandingPage(){
                                 </div>
                             </motion.div>
                     </motion.div>
-                    <motion.div variants={bentoItem} className="col-start-2 row-start-2 flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-4 mr-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
+                    <motion.div variants={bentoItem} className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-2 md:row-start-2 md:mt-4 md:mr-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
                         <p className="text-lg font-semibold text-center">Semantic search</p>
                         <p className="text-xs text-muted-foreground text-center">Powered by RAG, find relevant memories by meaning</p>
                     </motion.div>
-                    <motion.div variants={bentoItem} className="col-start-3 row-start-2 flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-4 ml-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
+                    <motion.div variants={bentoItem} className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-3 md:row-start-2 md:mt-4 md:ml-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
                         <p className="text-lg font-semibold text-center">Log memories manually</p>
                         <p className="text-xs text-muted-foreground text-center">Add detailed memories, facts or preferences anytime</p>
                     </motion.div>
