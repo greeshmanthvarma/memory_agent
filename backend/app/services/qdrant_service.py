@@ -1,5 +1,14 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, PointIdsList, Filter, FieldCondition, MatchValue
+from qdrant_client.models import (
+    Distance,
+    VectorParams,
+    PointStruct,
+    PointIdsList,
+    Filter,
+    FieldCondition,
+    MatchValue,
+    PayloadSchemaType,
+)
 import uuid
 from dotenv import load_dotenv
 import os
@@ -13,15 +22,32 @@ qdrant_client = QdrantClient(
     api_key=_qdrant_api_key if _qdrant_api_key else None,
 )
 
+
+def _ensure_user_id_index(collection_name: str):
+    """Create payload index for user_id so filters on user_id work. Idempotent."""
+    try:
+        qdrant_client.create_payload_index(
+            collection_name=collection_name,
+            field_name="user_id",
+            field_schema=PayloadSchemaType.INTEGER,
+        )
+    except Exception:
+        # Index may already exist
+        pass
+
+
 def create_collection(name: str = "memories", vector_size: int = 1536):
     try:
         if qdrant_client.collection_exists(collection_name=name):
+            _ensure_user_id_index(name)
             return qdrant_client.get_collection(collection_name=name)
         else:
-            return qdrant_client.create_collection(
+            created = qdrant_client.create_collection(
                 collection_name=name,
                 vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
             )
+            _ensure_user_id_index(name)
+            return created
     except Exception as e:
         raise Exception(f"Error creating/getting collection: {e}")
 
@@ -47,8 +73,10 @@ def add_point(collection_name: str, embedding: list[float], metadata: dict, id: 
         raise Exception(f"Error adding point: {e}")
 
 
-def search_points(collection_name: str, query_vector: list[float], limit: int = 10,user_id: int = None):
+def search_points(collection_name: str, query_vector: list[float], limit: int = 10, user_id: int = None):
     try:
+        if user_id is not None:
+            _ensure_user_id_index(collection_name)
         query_filter = None
         if user_id is not None:
             query_filter = Filter(

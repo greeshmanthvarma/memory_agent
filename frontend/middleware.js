@@ -19,22 +19,33 @@ export default async function middleware(request) {
   const headers = new Headers(request.headers);
   headers.set('Host', new URL(backendUrl).host);
 
+
+  const timeoutMs = 90000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   let res;
   try {
     res = await fetch(targetUrl.toString(), {
       method: request.method,
       headers,
       body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      signal: controller.signal,
     });
   } catch (err) {
+    clearTimeout(timeoutId);
+    const isTimeout = err.name === 'AbortError';
     return new Response(
       JSON.stringify({
-        error: 'Backend unreachable',
-        detail: err.message || 'Proxy could not reach BACKEND_URL',
+        error: isTimeout ? 'Backend timeout' : 'Backend unreachable',
+        detail: isTimeout
+          ? 'Chat took too long. Try a shorter message or try again.'
+          : err.message || 'Proxy could not reach BACKEND_URL',
       }),
       { status: 502, headers: { 'Content-Type': 'application/json' } }
     );
   }
+  clearTimeout(timeoutId);
 
   const resHeaders = new Headers(res.headers);
   resHeaders.set('X-Proxied', '1');

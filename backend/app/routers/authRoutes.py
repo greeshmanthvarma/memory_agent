@@ -23,6 +23,7 @@ auth_router = APIRouter(
 
 @auth_router.post("/register")
 async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
+    created_collection = None
     try:
         jwt_secret = os.getenv("JWT_SECRET")
         if not jwt_secret:
@@ -35,7 +36,6 @@ async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
         if existing_user:
             raise HTTPException(status_code=400, detail="User already exists")
 
-        created_collection = None
         new_user = UserModel(
             email=user.email,
             username=user.username,
