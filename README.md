@@ -68,6 +68,8 @@ CORS_ORIGINS=http://localhost:5173
 
 **Frontend**: No environment variables required for local development. The Vite dev server proxies `/api` to the backend.
 
+- **Vercel**: Set `BACKEND_URL` (e.g. `https://your-app.elasticbeanstalk.com`) in Project → Settings → Environment Variables. The frontend uses Edge Middleware to proxy `/api/*` to this URL so the backend URL is not stored in the repo.
+
 ## Installation
 
 ### Backend

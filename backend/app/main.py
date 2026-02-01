@@ -32,7 +32,7 @@ app.include_router(memory_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
 
-qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"))
+qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"),api_key=os.getenv("QDRANT_API_KEY"))
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Database will be initialized on startup
