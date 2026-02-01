@@ -4,6 +4,14 @@ export const config = {
 };
 
 export default async function middleware(request) {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  const method = request.method;
+
+  // Long-running routes: handled by serverless functions (longer timeout than Edge)
+  if (method === 'POST' && pathname === '/api/chat') return;
+  if (method === 'GET' && pathname === '/api/memory') return;
+
   const backendUrl = process.env.BACKEND_URL;
   if (!backendUrl) {
     return new Response(
@@ -12,9 +20,8 @@ export default async function middleware(request) {
     );
   }
 
-  const url = new URL(request.url);
   const base = backendUrl.replace(/\/$/, '');
-  const targetUrl = new URL(url.pathname + url.search, base);
+  const targetUrl = new URL(pathname + url.search, base);
 
   const headers = new Headers(request.headers);
   headers.set('Host', new URL(backendUrl).host);
