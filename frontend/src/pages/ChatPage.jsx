@@ -8,6 +8,7 @@ import {toast} from "sonner"
 import ReactMarkdown from "react-markdown"
 import { Button } from '@/components/ui/button'
 import { useSidebar, SidebarTrigger } from '@/components/ui/sidebar'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 export default function ChatPage() {
   const { theme, toggleTheme } = useTheme()
@@ -241,15 +242,23 @@ export default function ChatPage() {
         </div>
         {
           conversationId && messages.length > 0 && (
-            <Button 
-              onClick={()=> onSummarizeConversation()} 
-              variant="outline" 
-              size="sm"
-              className="cursor-pointer text-xs h-8" 
-              disabled={isSummarizing}
-            >
-              {isSummarizing ? 'Summarizing...' : 'Summarize Conversation'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  onClick={()=> onSummarizeConversation()} 
+                  variant="outline" 
+                  size="sm"
+                  className="cursor-pointer text-xs h-8" 
+                  disabled={isSummarizing}
+                >
+                  {isSummarizing ? 'Summarizing...' : 'Summarize Conversation'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs text-muted-foreground">Extract and save to memory</p>
+              </TooltipContent>
+            </Tooltip>
+           
           )
         }
       </div>
