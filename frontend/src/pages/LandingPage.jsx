@@ -3,6 +3,7 @@ import { useAuth } from '@/AuthContext'
 import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { motion, useInView } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
 import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles } from "lucide-react"
@@ -89,10 +90,10 @@ export default function LandingPage(){
                 navigate('/app/chat')
             } else {
                 const data = await response.json().catch(() => ({}))
-                toast.error(data.detail || 'Demo unavailable. Please sign up to try.')
+                toast.error(data.detail ? `${data.detail} Try again—the database may be waking up.` : "Couldn't load demo. Try again—the database may be waking up.")
             }
         } catch (err) {
-            toast.error('Demo unavailable. Please sign up to try.')
+            toast.error("Couldn't load demo. Try again—the database may be waking up.")
         } finally {
             setIsDemoLoading(false)
         }
@@ -212,15 +213,22 @@ export default function LandingPage(){
                     <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-2xl text-center mx-auto">
                         Persistent memory powered by semantic search and intelligent recall.
                     </p>
-                    <Button
-                        size="lg"
-                        variant="outline"
-                        className="mt-3 sm:mt-4 cursor-pointer text-sm sm:text-base"
-                        onClick={handleTryDemo}
-                        disabled={isDemoLoading}
-                    >
-                        {isDemoLoading ? 'Loading...' : 'Try demo'}
-                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                className="mt-3 sm:mt-4 cursor-pointer text-sm sm:text-base"
+                                onClick={handleTryDemo}
+                                disabled={isDemoLoading}
+                            >
+                                {isDemoLoading ? 'Loading...' : 'Try demo'}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p className="text-xs text-muted-foreground">If it doesn&apos;t load, try again. The database may be waking up.</p>
+                        </TooltipContent>
+                    </Tooltip>
                     </div>
                 </motion.div>
             </section>
