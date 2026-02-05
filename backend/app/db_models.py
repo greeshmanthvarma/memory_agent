@@ -11,7 +11,8 @@ from app.database import Base
 class MemoryType(str, enum.Enum):
     EXPLICIT = "explicit"
     IMPLICIT = "implicit"
-
+    PHOTO = "photo"
+    CALENDER = "calender"
 
 class MessageRole(str, enum.Enum):
     USER = "user"

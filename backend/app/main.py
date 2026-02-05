@@ -6,9 +6,15 @@ from qdrant_client import QdrantClient, models
 from pydantic import BaseModel
 from openai import OpenAI
 import os
+import asyncio
+from app.database import AsyncSessionLocal
 from app.routers.memoryRoutes import memory_router
 from app.routers.authRoutes import auth_router
 from app.routers.chatRoutes import chat_router
+from sqlalchemy import text
+import logging
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -56,10 +62,24 @@ async def startup_event():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    
+    # app.state.db_ping_task = asyncio.create_task(db_ping())
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     await engine.dispose()
+    
+
+#    db_ping_task = getattr(app.state, "db_ping_task", None)
+#    if db_ping_task:
+#        db_ping_task.cancel()
+#        try:
+#            await db_ping_task
+#        except asyncio.CancelledError:
+#            pass
+#        except Exception as e:
+#            logger.warning(f"Error canceling db ping task: {str(e)}")
 
 @app.get("/")
 async def root():
@@ -72,3 +92,12 @@ async def health():
     """Health check for load balancers and monitoring"""
     return {"status": "ok"}
 
+# async def db_ping():
+#     while True:
+#         await asyncio.sleep(300)
+#         try:
+#             async with AsyncSessionLocal() as db:
+#                 await db.execute(text("SELECT 1"))
+#         except Exception as e:
+#             logger.warning(f"Database connection failed: {str(e)}")
+#             continue

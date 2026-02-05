@@ -89,11 +89,10 @@ export default function LandingPage(){
                 toast.success('Demo loaded. Explore the app.')
                 navigate('/app/chat')
             } else {
-                const data = await response.json().catch(() => ({}))
-                toast.error(data.detail ? `${data.detail} Try again—the database may be waking up.` : "Couldn't load demo. Try again—the database may be waking up.")
+                toast.error("Couldn't load demo. The database might be napping (free tier :( ). Give it a few seconds and try again!")
             }
         } catch (err) {
-            toast.error("Couldn't load demo. Try again—the database may be waking up.")
+            toast.error("Couldn't connect. Check your connection, or wait a moment. Server might be waking up (free tier :( ). Try again!")
         } finally {
             setIsDemoLoading(false)
         }

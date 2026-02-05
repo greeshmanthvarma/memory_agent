@@ -9,7 +9,7 @@ class Memory(BaseModel):
     content: str
     summary_long: Optional[str] = None
     embedding_id: uuid.UUID
-    memory_type: Literal["explicit", "implicit"]
+    memory_type: Literal["explicit", "implicit", "photo", "calender"]
     conversation_id: Optional[int] = None
     user_id: int
     importance_score: float = 0.0
@@ -24,7 +24,7 @@ class Memory(BaseModel):
 class MemoryCreate(BaseModel):
     content: str
     summary_long: Optional[str] = None
-    memory_type: Literal["explicit", "implicit"]
+    memory_type: Literal["explicit", "implicit", "photo", "calender"]
     conversation_id: Optional[int] = None
     importance_score: float = 0.0
     tags: List[str] = Field(default_factory=list)
@@ -34,7 +34,7 @@ class MemoryCreate(BaseModel):
 class MemoryUpdate(BaseModel):
     content: Optional[str] = None
     embedding_id: Optional[uuid.UUID] = None
-    memory_type: Optional[Literal["explicit", "implicit"]] = None
+    memory_type: Optional[Literal["explicit", "implicit", "photo", "calender"]] = None
     importance_score: Optional[float] = None
     tags: Optional[List[str]] = None
 
