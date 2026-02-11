@@ -225,7 +225,7 @@ export default function LandingPage(){
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                            <p className="text-xs text-muted-foreground">If it doesn&apos;t load, try again. The database may be waking up.</p>
+                            <p className="text-xs text-foreground">If it doesn&apos;t load, try again. The database may be waking up.</p>
                         </TooltipContent>
                     </Tooltip>
                     </div>
