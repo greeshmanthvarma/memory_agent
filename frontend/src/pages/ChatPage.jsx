@@ -255,7 +255,7 @@ export default function ChatPage() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-xs text-foreground">Extract and save to memory</p>
+                <p className="text-xs text-muted-foreground">Extract and save to memory</p>
               </TooltipContent>
             </Tooltip>
            
