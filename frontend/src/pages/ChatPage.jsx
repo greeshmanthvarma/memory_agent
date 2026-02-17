@@ -171,7 +171,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, optimisticUserMessage])
       setAwaitingResponse(true)
       try{
-        const response = await fetch('http://localhost:8001/api/chat', {
+        const response = await fetch('/api/chat', {
           method:'POST',
           credentials:'include',
           headers: {
