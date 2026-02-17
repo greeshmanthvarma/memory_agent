@@ -1,6 +1,7 @@
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import logging
 from typing import List, Dict
 from app.models import Message
 from app.services.tools import create_search_memories_tool
@@ -10,6 +11,7 @@ import tiktoken
 from app.db_models import UserModel
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def _build_summary_prompt(messages: str) -> str:
@@ -247,55 +249,60 @@ async def chat(user: UserModel, db: AsyncSession,user_message: str,messages: Lis
                 }
             }
         ]
-        input_messages = [
-            {
-                "role":"developer",
-                "content":_build_chat_prompt()
-            }]+conversation_history+[
-            {
-                "role":"user",
-                "content":user_message
-            }
+        input_messages = conversation_history + [
+            {"role": "user", "content": user_message}
         ]
-        response = client.responses.create(
+        stream = client.responses.create(
             tools=tools,
             model="gpt-4o-mini",
-            input=input_messages
+            instructions=_build_chat_prompt(),
+            input=input_messages,
+            stream=True,
         )
         tool_call_made = False
-        for tool_call in response.output:
-            if tool_call.type != "function_call":
-                continue
 
-            tool_call_made = True
-            if isinstance(tool_call.arguments, str):
-                args = json.loads(tool_call.arguments)
-                arguments_str = tool_call.arguments
-            else:
-                args = tool_call.arguments
-                arguments_str = json.dumps(args)
-            
-            input_messages.append({
-                "type": "function_call",
-                "call_id": tool_call.call_id,
-                "name": tool_call.name,
-                "arguments": arguments_str
-            })
-            
-            result = await search_memories_tool(args["query"])
-            input_messages.append({
-                "type": "function_call_output",
-                "call_id": tool_call.call_id,
-                "output": str(result)
-            })
+        for event in stream:
+            if event.type == "response.output_item.done" and getattr(event, "item", None) and getattr(event.item, "type", None) == "function_call":
+                tool_call_made = True
+                if isinstance(event.item.arguments, str):
+                    args = json.loads(event.item.arguments)
+                    arguments_str = event.item.arguments
+                else:
+                    args = event.item.arguments or {}
+                    arguments_str = json.dumps(args)
+                input_messages.append({
+                    "type": "function_call",
+                    "call_id": event.item.call_id,
+                    "name": event.item.name,
+                    "arguments": arguments_str,
+                })
+                if event.item.name == "search_memories":
+                    result = await search_memories_tool(args.get("query", ""))
+                    input_messages.append({
+                        "type": "function_call_output",
+                        "call_id": event.item.call_id,
+                        "output": str(result),
+                    })
+            elif event.type == "response.output_text.delta":
+                delta = getattr(event, "delta", None) or getattr(event, "text", "") or ""
+                if delta:
+                    #logger.info("stream chunk (first response): %r", delta)
+                    #print(f"[stream] first response chunk: {delta!r}", flush=True)
+                    yield delta
+
         if tool_call_made:
-            final_response = client.responses.create(
+            final_stream = client.responses.create(
                 tools=tools,
                 model="gpt-4o-mini",
-                input=input_messages
+                instructions=_build_chat_prompt(),
+                input=input_messages,
+                stream=True,
             )
-        else:
-            final_response = response
-        return final_response.output_text
+            for event in final_stream:
+                if event.type == "response.output_text.delta":
+                    delta = getattr(event, "delta", None) or getattr(event, "text", "") or ""
+                    if delta:
+                        yield delta
+    
     except Exception as e:
         raise Exception(f"Error formulating a response: {e}")

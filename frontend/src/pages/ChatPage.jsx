@@ -24,6 +24,7 @@ export default function ChatPage() {
   const messagesContainerRef = useRef(null)
   const isInitialLoadRef = useRef(false)
   const loadedConversationIdRef = useRef(null)
+  const streamingContentRef = useRef('')
   const [isSummarizing,setIsSummarizing]=useState(false)
   const { refreshConversations } = useSidebar()
   const [loadingMessages, setLoadingMessages]=useState(false)
@@ -170,7 +171,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, optimisticUserMessage])
       setAwaitingResponse(true)
       try{
-        const response = await fetch('/api/chat',{
+        const response = await fetch('http://localhost:8001/api/chat', {
           method:'POST',
           credentials:'include',
           headers: {
@@ -181,17 +182,38 @@ export default function ChatPage() {
             conversation_id: currentConversationId
           })
         })
-        if(response.ok){
-          setAwaitingResponse(false)
-          await fetchMessages(currentConversationId)
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({}))
+          throw new Error(errBody.detail || `${response.status} ${response.statusText}`)
         }
-        else{
-          throw new Error('Failed to send message')
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        const streamingId = `streaming-${Date.now()}`
+        streamingContentRef.current = ''
+        let firstChunk = true
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          const text = value ? decoder.decode(value, { stream: true }) : ''
+          if (!text) continue
+          streamingContentRef.current += text
+          if (firstChunk) {
+            setMessages((prev) => [...prev, { content: streamingContentRef.current, role: 'assistant', id: streamingId }])
+            setAwaitingResponse(false)
+            firstChunk = false
+          } else {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamingId ? { ...m, content: streamingContentRef.current } : m))
+            )
+          }
         }
       }
       catch(error){
         console.error('Error sending message:', error)
-        setError('Failed to send message')
+        const displayMsg = error.message || 'Failed to send message'
+        setError(displayMsg)
+        toast.error(displayMsg)
         setMessages(prev => prev.filter(msg => msg.id !== optimisticUserMessage.id))
         setAwaitingResponse(false)
       }
@@ -313,6 +335,17 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
+            {awaitingResponse && (
+              <div className="flex justify-start">
+                <div className="px-4 py-3 rounded-2xl max-w-[95%] text-foreground bg-muted/50">
+                  <span className="inline-flex gap-1">
+                    <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </span>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef}></div>
           </div>
         )}

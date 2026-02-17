@@ -1,5 +1,6 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest, ConversationUpdate
 from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service
 from app.middleware.auth import get_current_user
@@ -48,17 +49,32 @@ async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user)
             )
         ]
         
-        response = await chat_service(user=user, db=db, user_message=request.user_message, messages=messages_list)
-        if not response:
-            raise HTTPException(status_code=500, detail="Failed to formulate a response")
-        
-        assistant_response = MessageModel(
-            content=response,
-            role="assistant",
-            conversation_id=request.conversation_id
+        async def stream():
+            full = []
+            try:
+                async for chunk in chat_service(user=user, db=db, user_message=request.user_message, messages=messages_list):
+                    full.append(chunk)
+                    yield chunk
+                    await asyncio.sleep(0)
+            finally:
+                if full:
+                    text = "".join(full)
+                    assistant_response = MessageModel(
+                        content=text,
+                        role="assistant",
+                        conversation_id=request.conversation_id,
+                    )
+                    await db_create_message(assistant_response, db)
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/plain",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
-        await db_create_message(assistant_response, db)
-        return JSONResponse({"response": response})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
