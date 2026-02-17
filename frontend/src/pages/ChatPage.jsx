@@ -1,7 +1,8 @@
 import {InputGroup,InputGroupButton,InputGroupTextarea,InputGroupAddon} from "@/components/ui/input-group"
 import { ArrowUp, Sun, Moon } from "lucide-react"
 import { useTheme } from '@/ThemeContext'
-import { useState,useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { useAuth } from '@/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {toast} from "sonner"
