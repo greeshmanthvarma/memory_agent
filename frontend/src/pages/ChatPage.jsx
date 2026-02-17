@@ -25,6 +25,7 @@ export default function ChatPage() {
   const isInitialLoadRef = useRef(false)
   const loadedConversationIdRef = useRef(null)
   const streamingContentRef = useRef('')
+  const isSendingMessageRef = useRef(false)
   const [isSummarizing,setIsSummarizing]=useState(false)
   const { refreshConversations } = useSidebar()
   const [loadingMessages, setLoadingMessages]=useState(false)
@@ -50,7 +51,10 @@ export default function ChatPage() {
       }
       isInitialLoadRef.current = true
       await fetchConversation(conversationId)
-      await fetchMessages(conversationId)
+      const messagesData = await fetchMessages(conversationId)
+      if (!isSendingMessageRef.current && messagesData != null) {
+        setMessages(messagesData)
+      }
       loadedConversationIdRef.current = conversationId
       setLoadingMessages(false)
     }
@@ -112,16 +116,16 @@ export default function ChatPage() {
         })
         if(response.ok){
           const data=await response.json()
-          setMessages(data.messages)
+          return data.messages
         }
         else{
           throw new Error('Failed to fetch messages')
-          
         }
       }
       catch(error){
         setLoadingMessages(false)
         toast.error('Failed to fetch messages')
+        return null
       }
     }
   
@@ -160,6 +164,7 @@ export default function ChatPage() {
           return
         }
         loadedConversationIdRef.current = currentConversationId
+        isSendingMessageRef.current = true
         navigate(`/app/chat/${currentConversationId}`, { replace: true })
         refreshConversations()
       }
@@ -199,13 +204,17 @@ export default function ChatPage() {
           if (!text) continue
           streamingContentRef.current += text
           if (firstChunk) {
-            setMessages((prev) => [...prev, { content: streamingContentRef.current, role: 'assistant', id: streamingId }])
+            flushSync(() => {
+              setMessages((prev) => [...prev, { content: streamingContentRef.current, role: 'assistant', id: streamingId }])
+            })
             setAwaitingResponse(false)
             firstChunk = false
           } else {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === streamingId ? { ...m, content: streamingContentRef.current } : m))
-            )
+            flushSync(() => {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === streamingId ? { ...m, content: streamingContentRef.current } : m))
+              )
+            })
           }
         }
       }
@@ -216,6 +225,9 @@ export default function ChatPage() {
         toast.error(displayMsg)
         setMessages(prev => prev.filter(msg => msg.id !== optimisticUserMessage.id))
         setAwaitingResponse(false)
+      }
+      finally {
+        isSendingMessageRef.current = false
       }
     }
 
