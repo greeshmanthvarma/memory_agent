@@ -2,7 +2,6 @@ import {InputGroup,InputGroupButton,InputGroupTextarea,InputGroupAddon} from "@/
 import { ArrowUp, Sun, Moon } from "lucide-react"
 import { useTheme } from '@/ThemeContext'
 import { useState, useEffect, useRef } from 'react'
-import { flushSync } from 'react-dom'
 import { useAuth } from '@/AuthContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import {toast} from "sonner"
@@ -205,17 +204,13 @@ export default function ChatPage() {
           if (!text) continue
           streamingContentRef.current += text
           if (firstChunk) {
-            flushSync(() => {
-              setMessages((prev) => [...prev, { content: streamingContentRef.current, role: 'assistant', id: streamingId }])
-            })
+            setMessages((prev) => [...prev, { content: streamingContentRef.current, role: 'assistant', id: streamingId }])
             setAwaitingResponse(false)
             firstChunk = false
           } else {
-            flushSync(() => {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === streamingId ? { ...m, content: streamingContentRef.current } : m))
-              )
-            })
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamingId ? { ...m, content: streamingContentRef.current } : m))
+            )
           }
         }
       }

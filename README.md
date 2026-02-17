@@ -225,7 +225,7 @@ memory agent/
 
 ## What's next
 
-- **Streaming chat** – Stream LLM tokens as they’re generated so responses appear incrementally and avoid long proxy timeouts.
+- ~~**Streaming chat**~~ ✓ – Stream LLM tokens as they’re generated so responses appear incrementally and avoid long proxy timeouts.
 - **Edit / delete memories** – Let users update or remove memories from Memory Space.
 - **Export memories** – Export memories (e.g. JSON or markdown) for backup or portability.
 - **Stronger dedup** – Tune similarity thresholds and add merge/merge-prompt for near-duplicate facts and preferences.
