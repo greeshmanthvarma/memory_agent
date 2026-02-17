@@ -1,7 +1,10 @@
 /**
  * Serverless proxy for POST /api/chat so the request can run longer than Edge limit (~30s).
  * Chat (LLM) often takes 30–90s; this function has a 60s timeout.
+ * Streams the backend response to the client so tokens appear as they arrive.
  */
+import { Readable } from 'stream';
+
 export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
@@ -44,11 +47,15 @@ export default async function handler(req, res) {
 
     clearTimeout(timeoutId);
 
-    const data = await response.text();
-    const contentType = response.headers.get('content-type') || 'application/json';
+    const contentType = response.headers.get('content-type') || 'text/plain';
     res.setHeader('Content-Type', contentType);
     res.setHeader('X-Proxied', '1');
-    res.status(response.status).send(data);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.status(response.status);
+
+    const nodeStream = Readable.fromWeb(response.body);
+    nodeStream.pipe(res);
   } catch (err) {
     const isTimeout = err.name === 'AbortError';
     res.status(502).json({
