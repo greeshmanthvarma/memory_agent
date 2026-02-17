@@ -52,42 +52,39 @@ async def create_memory(memory: MemoryCreate,embedding: list[float],user_id: int
                     "is_duplicate": True,
                     "duplicate_type": "exact"
                 }
-        
-        
-        similar_memories = check_similar_memories(memory.content,embedding,user_id=user_id,collection_name=collection_name)
-        if len(similar_memories) > 0 and should_deduplicate:
-            similar_memory = similar_memories[0]
-            db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"],user_id,db)
-            return {
-                "memory": db_memory_to_memory(db_similar_memory),
-                "is_duplicate": True,
-                "duplicate_type": "semantic"
-            }
-        else:
-           
-            conversation_id = memory.conversation_id if memory.conversation_id and memory.conversation_id != 0 else None
-            
-            metadata = memory.model_dump(exclude={"summary_long"})
-            metadata["user_id"] = user_id
-            metadata["conversation_id"] = conversation_id
-            
-            memory_point = add_point(collection_name=collection_name, embedding=embedding, metadata=metadata)
-            
-            db_memory = await db_create_memory(MemoryModel(
-                content=memory.content,
-                summary_long=memory.summary_long,
-                embedding_id=memory_point.id,
-                memory_type=MemoryType(memory.memory_type),
-                conversation_id=conversation_id,
-                user_id=user_id,
-                importance_score=memory.importance_score,
-                tags=memory.tags,
-            ), db)
-            return {
-                "memory": db_memory_to_memory(db_memory),
-                "is_duplicate": False,
-                "duplicate_type": None
-            }
+            similar_memories = check_similar_memories(memory.content, embedding, user_id=user_id, collection_name=collection_name)
+            if len(similar_memories) > 0:
+                similar_memory = similar_memories[0]
+                db_similar_memory = await db_get_memory_by_embedding_id(similar_memory["id"], user_id, db)
+                return {
+                    "memory": db_memory_to_memory(db_similar_memory),
+                    "is_duplicate": True,
+                    "duplicate_type": "semantic"
+                }
+
+        conversation_id = memory.conversation_id if memory.conversation_id and memory.conversation_id != 0 else None
+
+        metadata = memory.model_dump(exclude={"summary_long"})
+        metadata["user_id"] = user_id
+        metadata["conversation_id"] = conversation_id
+
+        memory_point = add_point(collection_name=collection_name, embedding=embedding, metadata=metadata)
+
+        db_memory = await db_create_memory(MemoryModel(
+            content=memory.content,
+            summary_long=memory.summary_long,
+            embedding_id=memory_point.id,
+            memory_type=MemoryType(memory.memory_type),
+            conversation_id=conversation_id,
+            user_id=user_id,
+            importance_score=memory.importance_score,
+            tags=memory.tags,
+        ), db)
+        return {
+            "memory": db_memory_to_memory(db_memory),
+            "is_duplicate": False,
+            "duplicate_type": None
+        }
     except ValueError:
         raise
     except Exception as e:
@@ -108,3 +105,6 @@ async def get_memory_by_query(query_vector: list[float], collection_name: str, u
     
     except Exception as e:
         raise Exception(f"Error getting memories by query: {e}")
+
+async def update_memory(memory: MemoryCreate, embedding: list[float], user_id: int, collection_name: str, db: AsyncSession):
+    pass
