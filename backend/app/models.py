@@ -33,11 +33,11 @@ class MemoryCreate(BaseModel):
 
 class MemoryUpdate(BaseModel):
     content: Optional[str] = None
-    embedding_id: Optional[uuid.UUID] = None
+    summary_long: Optional[str] = None
     memory_type: Optional[Literal["explicit", "implicit", "photo", "calender"]] = None
+    conversation_id: Optional[int] = None
     importance_score: Optional[float] = None
     tags: Optional[List[str]] = None
-
 
 class Message(BaseModel):
     id: int

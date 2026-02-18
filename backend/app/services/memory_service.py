@@ -1,10 +1,10 @@
 from app.models import MemoryCreate
-from app.services.qdrant_service import add_point, search_points
-from app.services.db_service import db_create_memory, db_get_memory_by_embedding_id, db_get_memory_by_content
-from app.models import Memory
+from app.services.qdrant_service import add_point, search_points, get_point_vector
+from app.services.db_service import db_create_memory, db_get_memory_by_embedding_id, db_get_memory_by_content, db_get_memory_by_id, db_update_memory
+from app.models import Memory, MemoryUpdate
 from app.db_models import MemoryModel, MemoryType
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 def check_similar_memories(content: str, embedding: list[float], user_id: int, collection_name: str, limit: int = 3):
     try:
@@ -106,5 +106,28 @@ async def get_memory_by_query(query_vector: list[float], collection_name: str, u
     except Exception as e:
         raise Exception(f"Error getting memories by query: {e}")
 
-async def update_memory(memory: MemoryCreate, embedding: list[float], user_id: int, collection_name: str, db: AsyncSession):
-    pass
+async def update_memory(memory_id: int, memory: MemoryUpdate, embedding: Optional[list[float]], user_id: int, collection_name: str, db: AsyncSession):
+    try:
+        db_memory = await db_get_memory_by_id(memory_id, user_id, db)
+        updates = memory.model_dump(exclude_unset=True)
+
+        memory_type = updates.get("memory_type") or db_memory.memory_type
+        payload = {
+            "user_id": user_id,
+            "conversation_id": updates.get("conversation_id", db_memory.conversation_id),
+            "content": updates.get("content", db_memory.content),
+            "memory_type": memory_type if isinstance(memory_type, str) else memory_type.value,
+            "importance_score": updates.get("importance_score", db_memory.importance_score),
+            "tags": updates.get("tags", db_memory.tags or []),
+        }
+        embedding_to_use = embedding if embedding is not None else get_point_vector(collection_name, db_memory.embedding_id)
+        add_point(collection_name=collection_name, embedding=embedding_to_use, metadata=payload, id=db_memory.embedding_id)
+
+        db_updates = {k: (MemoryType(v) if k == "memory_type" else v) for k, v in updates.items()} #making sure to convert the memory type to the correct type and mapping all fields to values.
+        await db_update_memory(memory_id, user_id, db, **db_updates)
+        updated = await db_get_memory_by_id(memory_id, user_id, db)
+        return db_memory_to_memory(updated)
+    except ValueError:
+        raise
+    except Exception as e:
+        raise Exception(f"Error updating memory: {e}")

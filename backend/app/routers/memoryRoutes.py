@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from app.database import get_db
-from app.models import MemoryCreate, Memory
+from app.models import MemoryCreate, Memory, MemoryUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.memory_service import create_memory as create_memory_service
 from app.services.embedding_service import embed_text
 from app.services.db_service import db_get_all_memories as db_get_all_memories_service, db_get_memory_by_id as db_get_memory_by_id_service
-from app.services.memory_service import db_memory_to_memory, get_memory_by_query as get_memory_by_query_service
+from app.services.memory_service import db_memory_to_memory, get_memory_by_query as get_memory_by_query_service, update_memory as update_memory_service
 from typing import List
 from app.db_models import UserModel
 from app.middleware.auth import get_current_user
@@ -79,6 +79,22 @@ async def get_memory_by_id(
     try:
         memory = await db_get_memory_by_id_service(memory_id,user.id,db)
         return db_memory_to_memory(memory)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@memory_router.patch("/{memory_id}")
+async def update_memory(
+    memory_id: int,
+    memory: MemoryUpdate,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Memory:
+    try:
+        embedding = embed_text(memory.content) if memory.content is not None else None
+        updated = await update_memory_service(memory_id, memory, embedding, user.id, user.collection_name, db)
+        return updated
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

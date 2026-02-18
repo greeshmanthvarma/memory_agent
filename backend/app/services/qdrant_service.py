@@ -73,6 +73,23 @@ def add_point(collection_name: str, embedding: list[float], metadata: dict, id: 
         raise Exception(f"Error adding point: {e}")
 
 
+def get_point_vector(collection_name: str, point_id: uuid.UUID) -> list[float]:
+    try:
+        result = qdrant_client.retrieve(
+            collection_name=collection_name,
+            ids=[point_id],
+            with_vectors=True,
+            with_payload=False,
+        )
+        if not result or len(result) == 0:
+            raise ValueError(f"Point {point_id} not found in collection {collection_name}")
+        return result[0].vector
+    except ValueError:
+        raise
+    except Exception as e:
+        raise Exception(f"Error retrieving point vector: {e}")
+
+
 def search_points(collection_name: str, query_vector: list[float], limit: int = 10, user_id: int = None):
     try:
         if user_id is not None:

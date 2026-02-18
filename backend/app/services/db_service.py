@@ -45,6 +45,21 @@ async def db_get_memory_by_id(memory_id: int,user_id: int,db: AsyncSession):
     except Exception as e:
         raise Exception(f"Error getting memory by id {memory_id}: {e}")
 
+async def db_update_memory(memory_id: int, user_id: int, db: AsyncSession, **updates):
+    try:
+        db_memory = await db_get_memory_by_id(memory_id, user_id, db)
+        for key, value in updates.items():
+            if hasattr(db_memory, key):
+                setattr(db_memory, key, value)
+        await db.commit()
+        await db.refresh(db_memory)
+        return db_memory
+    except ValueError:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"Error updating memory {memory_id}: {e}")
+
 async def db_get_memory_by_content(content: str, user_id: int, db: AsyncSession):
     try:
         result = await db.execute(select(MemoryModel).filter(MemoryModel.content == content).filter(MemoryModel.user_id == user_id))
