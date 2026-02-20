@@ -1,11 +1,19 @@
 from openai import OpenAI
 from dotenv import load_dotenv
+from fastembed import SparseTextEmbedding, SparseEmbedding
 import tiktoken
 import os
 
 load_dotenv()
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+sparse_embedder = SparseTextEmbedding(model_name="prithivida/Splade_PP_en_v1")
+
+def sparse_embed_text(text: str) -> SparseEmbedding:
+    try:
+        return sparse_embedder.embed([text])[0]
+    except Exception as e:
+        raise Exception(f"Error sparse embedding text: {e}")
 
 def embed_text(text: str) -> list[float]:
     try:

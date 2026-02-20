@@ -2,9 +2,11 @@
 name = "memory-agent"
 version = "1.0.0"
 description = "FastAPI application for Memory Agent"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 dependencies = [
     "fastapi==0.128.0",
+    "fastembed>=0.3.0",
+    "onnxruntime>=1.19,<1.24",
     "uvicorn[standard]==0.40.0",
     "python-dotenv==1.2.1",
     "qdrant-client",
