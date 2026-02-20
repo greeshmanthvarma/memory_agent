@@ -1,5 +1,5 @@
 
-from app.services.embedding_service import embed_text
+from app.services.embedding_service import embed_text, sparse_embed_text
 from app.services.memory_service import get_memory_by_query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta
@@ -26,8 +26,9 @@ def create_search_memories_tool(db: AsyncSession, user: UserModel):
         """
 
         try:
-            query_vector = embed_text(query)
-            results= await get_memory_by_query(query_vector,collection_name=user.collection_name,user_id=user.id,db=db)
+            dense_query_vector = embed_text(query)
+            sparse_query_vector = sparse_embed_text(query)
+            results = await get_memory_by_query(query, dense_query_vector, sparse_query_vector, user.collection_name, user.id, db)
             if len(results) == 0:
                 return "No memories found."
 

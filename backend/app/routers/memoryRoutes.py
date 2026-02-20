@@ -53,8 +53,9 @@ async def get_memory_by_query(
     db: AsyncSession = Depends(get_db)
 ) -> List[dict]:
     try:
-        query_vector= embed_text(query)
-        memories = await get_memory_by_query_service(query_vector,user.collection_name,user.id,db)
+        dense_query_vector = embed_text(query)
+        sparse_query_vector = sparse_embed_text(query)
+        memories = await get_memory_by_query_service(query, dense_query_vector, sparse_query_vector, user.collection_name, user.id, db)
         return memories
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

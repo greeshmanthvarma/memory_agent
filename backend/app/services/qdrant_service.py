@@ -29,7 +29,7 @@ qdrant_client = QdrantClient(
     api_key=_qdrant_api_key if _qdrant_api_key else None,
 )
 reranker = TextCrossEncoder(model_name='jinaai/jina-reranker-v1-turbo-en')
-top_k_threshold = 5
+
 
 def _ensure_user_id_index(collection_name: str):
     """Create payload index for user_id so filters on user_id work. Idempotent."""
@@ -70,21 +70,18 @@ def delete_collection(collection_name: str):
     except Exception as e:
         raise Exception(f"Error deleting collection: {e}")
 
-def build_point(dense_embedding: list[float], sparse_embedding: SparseEmbedding, metadata: dict, id: uuid.UUID = None):
+def build_point(dense_embedding: list[float], sparse_embedding: SparseEmbedding | SparseVector, metadata: dict, id: uuid.UUID = None):
+    sv = sparse_embedding if isinstance(sparse_embedding, SparseVector) else SparseVector(indices=sparse_embedding.indices, values=sparse_embedding.values)
     return PointStruct(
         id=id or uuid.uuid4(),
         vector={
-            "dense" : dense_embedding,
-            "sparse": SparseVector(
-                indices=sparse_embedding.indices,
-                values=sparse_embedding.values,
-            ),
+            "dense": dense_embedding,
+            "sparse": sv,
         },
-        
         payload=metadata,
     )
 
-def add_point(collection_name: str, dense_embedding: list[float], sparse_embedding: SparseEmbedding, metadata: dict, id: uuid.UUID = None):
+def add_point(collection_name: str, dense_embedding: list[float], sparse_embedding: SparseEmbedding | SparseVector, metadata: dict, id: uuid.UUID = None):
     try:
         point = build_point(dense_embedding, sparse_embedding, metadata, id)
         qdrant_client.upsert(collection_name=collection_name,points=[point])
@@ -93,7 +90,8 @@ def add_point(collection_name: str, dense_embedding: list[float], sparse_embeddi
         raise Exception(f"Error adding point: {e}")
 
 
-def get_point_vector(collection_name: str, point_id: uuid.UUID) -> list[float]:
+def get_point_vectors(collection_name: str, point_id: uuid.UUID) -> tuple[list[float], SparseVector]:
+    """Return (dense, sparse) for a point. Use when re-upserting with updated payload."""
     try:
         result = qdrant_client.retrieve(
             collection_name=collection_name,
@@ -103,11 +101,18 @@ def get_point_vector(collection_name: str, point_id: uuid.UUID) -> list[float]:
         )
         if not result or len(result) == 0:
             raise ValueError(f"Point {point_id} not found in collection {collection_name}")
-        return result[0].vector
+        vectors = result[0].vector
+        if not isinstance(vectors, dict):
+            raise ValueError(f"Expected named vectors dict, got {type(vectors)}")
+        dense = vectors["dense"]
+        sparse = vectors["sparse"]
+        if isinstance(sparse, dict):
+            sparse = SparseVector(indices=sparse["indices"], values=sparse["values"])
+        return dense, sparse
     except ValueError:
         raise
     except Exception as e:
-        raise Exception(f"Error retrieving point vector: {e}")
+        raise Exception(f"Error retrieving point vectors: {e}")
 
 
 def search_points(collection_name: str, query: str, dense_query_vector: list[float], sparse_query_vector: SparseEmbedding, limit: int = 10, user_id: int = None):
@@ -151,7 +156,7 @@ def search_points(collection_name: str, query: str, dense_query_vector: list[flo
             if score > 0.4
         ]
         ranking.sort(key=lambda x: x[1], reverse=True)
-        ranking= ranking[:top_k_threshold]
+        ranking= ranking[:limit]
         final_result = [{"id":search_result.points[index].id, "content":search_result_contents[index], "similarity":score} for index, score in ranking]
 
 
