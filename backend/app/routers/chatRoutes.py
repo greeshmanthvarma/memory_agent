@@ -1,8 +1,8 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest, ConversationUpdate
-from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service
+from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest, ConversationUpdate, TitleFromMessageRequest
+from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service, get_title as get_title_service
 from app.middleware.auth import get_current_user
 from app.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -209,6 +209,7 @@ async def get_all_conversations(user: UserModel = Depends(get_current_user), db:
                 memory_id=c.memory_id or None,
                 messages=[],
                 user_id=c.user_id,
+                thread_id=c.thread_id or None,
                 created_at=c.created_at,
                 updated_at=c.updated_at
             ) for c in conversations
@@ -254,6 +255,20 @@ async def update_conversation(conversation_id: int, update: ConversationUpdate, 
             raise HTTPException(status_code=400, detail="Title is required")
         await db_update_conversation_service(conversation_id, update.title, user.id, db)
         return JSONResponse({"message": "Conversation title updated successfully"})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@chat_router.post("/conversation/{conversation_id}/title")
+async def update_conversation_title(conversation_id: int, body: TitleFromMessageRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        await db_get_conversation(conversation_id, user.id, db) #ensures the conversation exists and is owned by the user, returns ValueError if not found
+        title = get_title_service(body.first_message)
+        await db_update_conversation_service(conversation_id, title, user.id, db)
+        return JSONResponse({"title": title})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:

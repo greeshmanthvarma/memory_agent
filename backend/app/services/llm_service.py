@@ -159,6 +159,21 @@ def summarize_conversation(messages: List[Message]) -> dict:
     except Exception as e:
         raise Exception(f"Error summarizing conversation: {e}")
 
+def get_title(first_message: str) -> str:
+    try:
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            input=[
+                {
+                    "role" : "developer",
+                    "content": f"Generate a concise 4-6 word title for a conversation starting with: {first_message}. Return only the title, no punctuation."
+                }
+            ]
+        )
+        return response.output_text
+    except Exception as e:
+        raise Exception(f"Error generating title: {e}")
+
 def _build_chat_prompt() -> str:
     """Build the prompt for chatting with the agent"""
     return """

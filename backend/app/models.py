@@ -96,3 +96,7 @@ class UpdateProfileRequest(BaseModel):
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
+
+
+class TitleFromMessageRequest(BaseModel):
+    first_message: str

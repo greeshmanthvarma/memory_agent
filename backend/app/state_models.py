@@ -1,12 +1,26 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
-from datetime import datetime
+from typing import TypedDict, Optional, Annotated, Literal
+import uuid
+from pydantic import BaseModel
+from langgraph.graph.message import add_messages
 
-class QueryAnalysis(BaseModel):
-    query: str
-    analysis: str
 
-class ContradictionDetection(BaseModel):
+
+class GraphState(TypedDict, total=False):
+    messages: Annotated[list, add_messages]
+    run_id: uuid.UUID
+    thread_id: str
+    user_id: int
+    user_message : str
+    # Query analysis
     query: str
-    contradiction: str
-    created_at: datetime = Field(default_factory=datetime.now)
+    intent: Literal["general_knowledge","personal", "ambiguous"]
+    # Retrieval
+    retrieval_results: list
+    retrieval_scores: list
+    retry_count: int
+    # Reflection / mutation
+    memory_action: Optional[dict]
+    last_mutation: Optional[dict]
+    
+class QueryAnalysisOutput(BaseModel):
+    intent: Literal["general_knowledge","personal", "ambiguous"]
