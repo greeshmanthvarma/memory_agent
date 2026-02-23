@@ -91,11 +91,16 @@ async def create_conversation(user: UserModel = Depends(get_current_user), db: A
             user_id=user.id
         )
         conversation_response = await db_create_conversation(conversation_model, db)
+        thread_id = f"{user.id}_{conversation_response.id}"
+        conversation_response.thread_id = thread_id
+        await db.commit()
+        await db.refresh(conversation_response)
         conversation = ConversationCreate(
             id=conversation_response.id,
             title=conversation_response.title or None,
             messages=[],
             user_id=conversation_response.user_id,
+            thread_id=conversation_response.thread_id,
             created_at=conversation_response.created_at,
             updated_at=conversation_response.updated_at
         )
@@ -222,6 +227,7 @@ async def get_conversation(conversation_id: int, user: UserModel = Depends(get_c
             memory_id=conversation.memory_id or None,
             messages=[],
             user_id=conversation.user_id,
+            thread_id=conversation.thread_id or None,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at
         )

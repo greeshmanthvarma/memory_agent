@@ -56,6 +56,7 @@ class ConversationRead(BaseModel):
     memory_id: Optional[int] = None
     messages: List[Message] = Field(default_factory=list)
     user_id: int
+    thread_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -65,6 +66,7 @@ class ConversationCreate(BaseModel):
     title: Optional[str] = None
     messages: List[Message] = Field(default_factory=list)
     user_id: int
+    thread_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

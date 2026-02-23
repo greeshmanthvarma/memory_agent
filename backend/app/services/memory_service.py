@@ -118,6 +118,7 @@ async def update_memory(memory_id: int, memory: MemoryUpdate, dense_embedding: O
             "memory_type": memory_type.value,
             "importance_score": updates.get("importance_score", db_memory.importance_score),
             "tags": updates.get("tags", db_memory.tags or []),
+            "is_superseded": False,
         }
         current_dense, current_sparse = get_point_vectors(collection_name, db_memory.embedding_id)
         dense_to_use = dense_embedding if dense_embedding is not None else current_dense

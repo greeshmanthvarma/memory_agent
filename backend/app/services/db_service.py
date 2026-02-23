@@ -13,9 +13,14 @@ async def db_create_memory(memory: MemoryModel,db: AsyncSession):
         await db.rollback()
         raise Exception(f"Error creating memory: {e}")
 
-async def db_get_memory_by_embedding_id(embedding_id: uuid.UUID,user_id: int,db: AsyncSession):
+async def db_get_memory_by_embedding_id(embedding_id: uuid.UUID, user_id: int, db: AsyncSession):
     try:
-        result = await db.execute(select(MemoryModel).filter(MemoryModel.embedding_id == embedding_id).filter(MemoryModel.user_id == user_id))
+        result = await db.execute(
+            select(MemoryModel)
+            .filter(MemoryModel.embedding_id == embedding_id)
+            .filter(MemoryModel.user_id == user_id)
+            .filter(MemoryModel.superseded_by_id == None)
+        )
         memory = result.scalar_one_or_none()
         if not memory:
             raise ValueError(f"Memory with embedding id {embedding_id} not found in the database")
@@ -25,9 +30,14 @@ async def db_get_memory_by_embedding_id(embedding_id: uuid.UUID,user_id: int,db:
     except Exception as e:
         raise Exception(f"Error getting memory by embedding id {embedding_id}: {e}")
 
-async def db_get_all_memories(user_id: int,db: AsyncSession):
+async def db_get_all_memories(user_id: int, db: AsyncSession):
     try:
-        result = await db.execute(select(MemoryModel).filter(MemoryModel.user_id == user_id).order_by(MemoryModel.created_at.desc()))
+        result = await db.execute(
+            select(MemoryModel)
+            .filter(MemoryModel.user_id == user_id)
+            .filter(MemoryModel.superseded_by_id == None)
+            .order_by(MemoryModel.created_at.desc())
+        )
         memories = result.scalars().all()
         return memories
     except Exception as e:
@@ -60,9 +70,29 @@ async def db_update_memory(memory_id: int, user_id: int, db: AsyncSession, **upd
         await db.rollback()
         raise Exception(f"Error updating memory {memory_id}: {e}")
 
+
+async def db_update_memory_superseded_by(memory_id: int, superseded_by_id: int, user_id: int, db: AsyncSession):
+    """Set superseded_by_id on a memory (e.g. when it's replaced by another)."""
+    try:
+        db_memory = await db_get_memory_by_id(memory_id, user_id, db)
+        db_memory.superseded_by_id = superseded_by_id
+        await db.commit()
+        await db.refresh(db_memory)
+        return db_memory
+    except ValueError:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"Error setting superseded_by_id on memory {memory_id}: {e}")
+
 async def db_get_memory_by_content(content: str, user_id: int, db: AsyncSession):
     try:
-        result = await db.execute(select(MemoryModel).filter(MemoryModel.content == content).filter(MemoryModel.user_id == user_id))
+        result = await db.execute(
+            select(MemoryModel)
+            .filter(MemoryModel.content == content)
+            .filter(MemoryModel.user_id == user_id)
+            .filter(MemoryModel.superseded_by_id == None)
+        )
         memory = result.scalar_one_or_none()
         return memory
     except Exception as e:

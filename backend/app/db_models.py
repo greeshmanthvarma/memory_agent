@@ -32,6 +32,7 @@ class MemoryModel(Base):
     importance_score = Column(Float, default=0.0)
     tags = Column(ARRAY(String), default=list)
     related_memories = Column(ARRAY(Integer), default=list)
+    superseded_by_id = Column(Integer, ForeignKey("memories.id"), nullable=True, index=True)
     last_accessed_at = Column(DateTime, nullable=True)
     last_updated_at = Column(DateTime, nullable=True, onupdate=func.now())
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
@@ -62,6 +63,7 @@ class ConversationModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=True)
     memory_id = Column(Integer, ForeignKey("memories.id"), nullable=True)
+    thread_id = Column(String, nullable=True, unique=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -88,3 +90,14 @@ class UserModel(Base):
     # Relationships
     memories = relationship("MemoryModel", back_populates="user", foreign_keys=[MemoryModel.user_id])
     conversations = relationship("ConversationModel", back_populates="user", foreign_keys=[ConversationModel.user_id])
+
+class EvalsModel(Base):
+    __tablename__ = "evals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    thread_id = Column(String, nullable=True, index=True)  
+    node_name = Column(String, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=False)
+    duration_ms = Column(Float, nullable=False)

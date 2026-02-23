@@ -44,10 +44,23 @@ def _ensure_user_id_index(collection_name: str):
         pass
 
 
+def _ensure_is_superseded_index(collection_name: str):
+    """Create payload index for is_superseded so filters work. Idempotent."""
+    try:
+        qdrant_client.create_payload_index(
+            collection_name=collection_name,
+            field_name="is_superseded",
+            field_schema=PayloadSchemaType.BOOL,
+        )
+    except Exception:
+        pass
+
+
 def create_collection(name: str = "memories", vector_size: int = 1536):
     try:
         if qdrant_client.collection_exists(collection_name=name):
             _ensure_user_id_index(name)
+            _ensure_is_superseded_index(name)
             return qdrant_client.get_collection(collection_name=name)
         else:
             created = qdrant_client.create_collection(
@@ -60,6 +73,7 @@ def create_collection(name: str = "memories", vector_size: int = 1536):
                 },
             )
             _ensure_user_id_index(name)
+            _ensure_is_superseded_index(name)
             return created
     except Exception as e:
         raise Exception(f"Error creating/getting collection: {e}")
@@ -119,16 +133,12 @@ def search_points(collection_name: str, query: str, dense_query_vector: list[flo
     try:
         if user_id is not None:
             _ensure_user_id_index(collection_name)
-        query_filter = None
+        _ensure_is_superseded_index(collection_name)
+        must_conditions = []
         if user_id is not None:
-            query_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="user_id",
-                        match=MatchValue(value=user_id)
-                    )
-                ]
-            )
+            must_conditions.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
+        must_conditions.append(FieldCondition(key="is_superseded", match=MatchValue(value=False)))
+        query_filter = Filter(must=must_conditions) if must_conditions else None
         search_result = qdrant_client.query_points(
             collection_name=collection_name,
             prefetch=[
@@ -169,3 +179,32 @@ def delete_points(collection_name: str, ids: list[uuid.UUID]):
         qdrant_client.delete(collection_name=collection_name, points_selector=PointIdsList(points=ids))
     except Exception as e:
         raise Exception(f"Error deleting points: {e}")
+
+
+def backfill_is_superseded(collection_name: str, batch_size: int = 100) -> int:
+    """Set is_superseded=False for points that don't have it. Run once per collection after adding the field. Returns number of points updated."""
+    _ensure_is_superseded_index(collection_name)
+    updated = 0
+    offset = None
+    while True:
+        records, offset = qdrant_client.scroll(
+            collection_name=collection_name,
+            limit=batch_size,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        ids_to_update = [
+            r.id for r in records
+            if r.payload.get("is_superseded") is not False
+        ]
+        if ids_to_update:
+            qdrant_client.set_payload(
+                collection_name=collection_name,
+                payload={"is_superseded": False},
+                points=ids_to_update,
+            )
+            updated += len(ids_to_update)
+        if offset is None:
+            break
+    return updated

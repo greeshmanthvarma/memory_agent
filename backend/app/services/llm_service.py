@@ -9,10 +9,20 @@ import json
 from sqlalchemy.ext.asyncio import AsyncSession
 import tiktoken
 from app.db_models import UserModel
+from langchain_openai import ChatOpenAI
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+query_analysis_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+contradiction_detection_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+reflection_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+consolidation_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+
+
+
 
 def _build_summary_prompt(messages: str) -> str:
     """Build the prompt for summarizing a conversation"""
