@@ -7,20 +7,23 @@ from langgraph.graph.message import add_messages
 
 class GraphState(TypedDict, total=False):
     messages: Annotated[list, add_messages]
-    run_id: uuid.UUID
+    run_id: str
     thread_id: str
     user_id: int
     user_message : str
     # Query analysis
-    query: str
     intent: Literal["general_knowledge","personal", "ambiguous"]
+    retrieval_query: str
+    filters: dict
+    retry_feedback: str
     # Retrieval
     retrieval_results: list
-    retrieval_scores: list
     retry_count: int
     # Reflection / mutation
     memory_action: Optional[dict]
     last_mutation: Optional[dict]
     
 class QueryAnalysisOutput(BaseModel):
-    intent: Literal["general_knowledge","personal", "ambiguous"]
+    intent: Literal["general_knowledge", "personal", "ambiguous"]
+    retrieval_query: str | None = None
+    filters: dict = {} 

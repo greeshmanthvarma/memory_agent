@@ -2,15 +2,18 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import logging
-from typing import List, Dict
+from typing import List, Dict, Literal
+from datetime import datetime, timedelta
 from app.models import Message
-from app.services.tools import create_search_memories_tool
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 import tiktoken
 from app.db_models import UserModel
 from langchain_openai import ChatOpenAI
-
+from app.state_models import GraphState, QueryAnalysisOutput
+from langchain_core.messages import SystemMessage, HumanMessage
+from app.services.embedding_service import embed_text, sparse_embed_text
+from app.services.memory_service import get_memory_by_query
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -22,7 +25,107 @@ reflection_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
 consolidation_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
 
+QUERY_ANALYSIS_SYSTEM_PROMPT = """
+You are the query analysis component of a personal memory assistant. Your job is to analyze the user's message and prepare it for memory retrieval.
 
+## Your Task
+Analyze the user message and return a JSON object with:
+1. Classify the intent
+2. Generate an optimized retrieval query if needed
+3. Extract any filters if applicable
+
+## Intent Classification
+
+Classify the intent as one of three categories:
+
+**general_knowledge**: The query is factual or informational with no personalization value.
+- The user is asking about concepts, definitions, or facts
+- Knowing anything about the user would not improve the answer
+- Examples: "what is machine learning", "how does TCP work", "what year was the Eiffel Tower built"
+
+**personal**: The query is clearly about the user or would benefit significantly from personal context.
+- The query references the user's life, preferences, goals, habits, or experiences
+- Retrieving memories would meaningfully improve the response
+- Examples: "what should I focus on today", "how am I doing on my goals", "remind me what I said about my project"
+
+**ambiguous**: The query could benefit from personalization but is not explicitly personal.
+- A general answer exists but personal context could improve it
+- Retrieval will be attempted once but not retried if results are poor
+- Examples: "recommend me a book", "what are good activities in San Francisco", "what should I have for dinner"
+
+When in doubt between personal and ambiguous, classify as ambiguous.
+When in doubt between ambiguous and general_knowledge, classify as ambiguous.
+Always bias toward retrieval over skipping it.
+
+## Retrieval Query Generation
+
+If intent is personal or ambiguous, generate an optimized retrieval query that:
+- Captures the core information need behind the user's message
+- Is phrased to match how memories are likely stored - as natural language summaries of facts, preferences, and experiences
+- Expands on vague queries - "what should I work on" becomes "user's current projects priorities and goals"
+- Is broader than the original query when the original is too narrow
+- Incorporates retry feedback if provided
+
+If intent is general_knowledge, set retrieval_query to null.
+
+## Filters
+
+Extract filters only when the query explicitly implies a constraint:
+- Time: "last week", "recently", "in January" → created_at filter
+- Source: "something I added manually", "from my calendar" → source filter
+- Leave filters as empty dict if no clear constraint exists
+
+## Retry Context
+
+{retry_context}
+
+## Output Format
+
+Return a valid JSON object:
+{{
+    "intent": "general_knowledge" | "personal" | "ambiguous",
+    "retrieval_query": "optimized query string" | null,
+    "filters": {{}} | {{"source": "...", "created_at": {{...}}}}
+}}
+
+Return only the JSON object. No preamble, no explanation, no markdown.
+"""
+
+RETRY_CONTEXT_TEMPLATE = """
+This is retry attempt {retry_count} of 2. The previous retrieval attempt failed to find relevant memories.
+Previous retrieval query: {previous_query}
+Reason: {retry_feedback}
+Generate a meaningfully different retrieval query that addresses this feedback.
+"""
+
+NO_RETRY_CONTEXT = "This is the first retrieval attempt."
+
+RESPONSE_SYSTEM_PROMPT = """
+You are a helpful personal AI assistant with access to the user's long term memories.
+Memories relevant to this conversation have already been retrieved and are provided below.
+{memory_context}
+Guidelines:
+- Use the provided memories to personalize your response where relevant
+- Reference memories naturally and conversationally
+- Do not invent information not present in the conversation or memories
+- If no memories are provided or relevant, respond based on your general knowledge
+Memory usage:
+- "explicit" memories are manually added by the user and are highly reliable
+- "implicit" memories are auto-generated from conversations, use with appropriate context
+- Memories are sorted by relevance, the first ones are most relevant
+- If memories conflict, prioritize explicit memories over implicit ones, then more recent over older
+- Synthesize multiple memories when all are relevant
+Temporal context:
+- Always use the timestamp to reference memories naturally
+- Recent memories (hours/days): "You mentioned yesterday...", "Based on your recent..."
+- Older memories (weeks/months): "A few weeks ago you told me...", "Earlier this year..."
+- Event patterns: If multiple similar events exist, acknowledge the pattern naturally
+Tone:
+- Be conversational, concise, and natural
+- Never mention memory retrieval mechanics - no "based on retrieved memories..." or "I found a memory..."
+- Simply incorporate memory information seamlessly as a good friend would
+- Never say you couldn't find memories or that you searched for something
+"""
 
 def _build_summary_prompt(messages: str) -> str:
     """Build the prompt for summarizing a conversation"""
@@ -174,51 +277,158 @@ def get_title(first_message: str) -> str:
     except Exception as e:
         raise Exception(f"Error generating title: {e}")
 
-def _build_chat_prompt() -> str:
-    """Build the prompt for chatting with the agent"""
-    return """
-    You are a helpful AI assistant with access to user's long term memories. 
-    You can search through the user's memories to recall past information, preferences, and experiences.
+def _build_query_analysis_prompt(state: GraphState) -> str:
+    retry_count = state.get("retry_count", 0)
+    
+    if retry_count > 0:
+        retry_context = RETRY_CONTEXT_TEMPLATE.format(
+            retry_count=retry_count,
+            previous_query=state.get("retrieval_query", ""),
+            retry_feedback=state.get("retry_feedback", "")
+        )
+    else:
+        retry_context = NO_RETRY_CONTEXT
+    
+    return QUERY_ANALYSIS_SYSTEM_PROMPT.format(
+        retry_context=retry_context
+    )
 
-    Guidelines:
-    - Use the search_memories tool when you need to recall past information that might be relevant to the conversation.
-    - If the user asks you to recall a memory, you should use the search_memories tool to recall the memory.
-    - Be conversational, helpful, and natural.
-    - Reference specific memories when relevant to provide personalized responses.
-    - Do not invent information unless it is explicitly stated in the conversation or memories.
-    - If no relevant memories are found, respond based on your general knowledge.
-    
-    CRITICAL: Do NOT mention memory search results in your responses unless it's directly relevant to answering the user's question.
-    - Do NOT say things like "I couldn't find any memories..." or "It looks like I didn't find..." or "I searched your memories and..."
-    - Simply respond naturally with your answer, incorporating memory information seamlessly when available.
-    - If memories are relevant, reference them naturally (e.g., "Since you enjoyed Dandadan..." instead of "Based on the memory I found about Dandadan...").
-    - If no memories are found, just answer the question directly without mentioning the search (e.g., "Here are some recent romance SOL anime..." instead of "I didn't find memories, but here are...").
-    
-    Using memory information effectively:
-    - Memory Type: "explicit" memories are manually logged by the user and are highly reliable. "implicit" memories are auto-generated from conversations and should be used with appropriate context.
-    - Similarity scores: Higher scores (>0.8) indicate more relevant memories. Use multiple memories if they're all relevant.
-    - Tags: Use tags to understand memory categories and find related information.
-    - Multiple memories: When multiple memories are returned, synthesize them to provide comprehensive context. If memories conflict, prioritize more recent or explicit ones.
-    
-    Temporal context guidelines:
-    - The "Created" timestamp shows when the memory was formed. Always use this temporal information in your responses.
-    - For recent memories (hours/days ago): Reference them with specific timeframes (e.g., "You mentioned X yesterday", "Based on your recent conversation about Y").
-    - For older memories (weeks/months/years ago): Acknowledge the time gap appropriately (e.g., "You mentioned X a few weeks ago", "Earlier this year you told me about Y").
-    - Event-type memories: These represent specific occurrences at particular times. Always reference them with temporal context:
-      * Recent events: "You did a pull workout yesterday" (specific)
-      * Older events: "You did pull workouts last week" or "You mentioned doing pull workouts a few days ago" (appropriate timeframe)
-    - Recency priority: More recent memories are often more relevant to current context, but older memories provide valuable historical context and patterns.
-    - Temporal patterns: If multiple event-type memories show patterns (e.g., multiple workouts), acknowledge the pattern with temporal context (e.g., "You've been doing pull workouts regularly this week").
-    - When referencing temporal information, be natural and conversational - don't just state dates, use relative timeframes that feel natural.
-    
-    Best practices:
-    - Proactively search memories when the conversation topic is clearly personal or user-specific (e.g., preferences, past experiences, personal questions). Do NOT search for general knowledge questions that don't require personal context.
-    - When referencing memories, be specific but natural (e.g., "Based on what you mentioned about X..." rather than "According to Memory ID 123...").
-    - If a memory seems incorrect or outdated, acknowledge uncertainty and ask for clarification if needed.
-    - Respect user privacy - memories are personal and should be referenced appropriately in context.
-    - Keep responses concise and direct. Don't add unnecessary meta-commentary about memory searches.
 
-   """
+async def query_analysis(state: GraphState) -> dict:
+    try:
+        prompt = _build_query_analysis_prompt(state)
+        response = await query_analysis_model.with_structured_output(QueryAnalysisOutput).ainvoke([
+            SystemMessage(content=prompt),
+            HumanMessage(content=state["user_message"])
+        ])
+        return response.model_dump()
+    except Exception as e:
+        logger.warning("query analysis failed, defaulting to ambiguous intent")
+        return {
+            "intent": "ambiguous",
+            "retrieval_query": state["user_message"],
+            "filters": {}
+        }
+def should_retrieve(state: GraphState) -> Literal["retrieve", "respond"]:
+    intent = state.get("intent")
+    retrieval_query = state.get("retrieval_query")
+
+    if intent == "general_knowledge":
+        return "respond"
+    if retrieval_query and str(retrieval_query).strip():
+        return "retrieve"
+    if intent in ("personal", "ambiguous"):
+        return "retrieve"
+    return "respond"
+
+
+def _relative_time_str(created_at) -> str:
+    """Format created_at as human-readable relative time for the LLM."""
+    if created_at is None:
+        return "unknown"
+    if not isinstance(created_at, datetime):
+        return str(created_at) if created_at else "unknown"
+    now = datetime.now(created_at.tzinfo) if created_at.tzinfo else datetime.now()
+    delta = now - created_at
+    if delta < timedelta(minutes=1):
+        return "just now"
+    if delta < timedelta(hours=1):
+        return f"{int(delta.total_seconds() / 60)} minutes ago"
+    if delta < timedelta(days=1):
+        return f"{int(delta.total_seconds() / 3600)} hours ago"
+    if delta.days == 1:
+        return "yesterday"
+    if delta.days < 7:
+        return f"{delta.days} days ago"
+    if delta.days < 30:
+        return f"{delta.days // 7} weeks ago"
+    if delta.days < 365:
+        return f"{delta.days // 30} months ago"
+    return f"{delta.days // 365} years ago"
+
+
+def _format_retrieval_results_for_prompt(results: List[dict], max_items: int = 5) -> str:
+    """Format retrieval results with temporal info for injection into the response prompt."""
+    if not results:
+        return ""
+    lines = []
+    for item in results[:max_items]:
+        memory = item.get("memory")
+        similarity = item.get("similarity", 0)
+        if not memory:
+            continue
+        content = getattr(memory, "content", memory.get("content", ""))
+        memory_type = getattr(memory, "memory_type", memory.get("memory_type", ""))
+        tags = getattr(memory, "tags", memory.get("tags")) or []
+        tags_str = ", ".join(tags) if tags else "No tags"
+        created_at = getattr(memory, "created_at", memory.get("created_at"))
+        time_str = _relative_time_str(created_at) if created_at else "unknown"
+        created_iso = created_at.strftime("%Y-%m-%d %H:%M:%S") if isinstance(created_at, datetime) else str(created_at or "")
+        lines.append(
+            f"Memory ID {getattr(memory, 'id', memory.get('id', ''))}: {content}\n"
+            f"  Memory Type: {memory_type}, Similarity: {similarity:.2f}\n"
+            f"  Tags: {tags_str}, Created: {time_str} ({created_iso})\n"
+        )
+    return "\n\n".join(lines)
+
+
+def create_retrieve_memories_node(db: AsyncSession, user: UserModel):
+    async def retrieve_memories(state: GraphState) -> dict:
+        """
+        Retrieve memories from the database based on the retrieval query.
+        Returns raw results, scores, and a formatted string with temporal info for the prompt.
+        """
+        try:
+            retrieval_query = (state.get("retrieval_query") or "").strip() or state.get("user_message", "")
+            dense_query_vector = embed_text(retrieval_query)
+            sparse_query_vector = sparse_embed_text(retrieval_query)
+            results = await get_memory_by_query(
+                retrieval_query, dense_query_vector, sparse_query_vector,
+                user.collection_name, user.id, db
+            )
+            if len(results) == 0:
+                return {
+                    "retrieval_results": [],
+                }
+            return {"retrieval_results": results}
+        except Exception as e:
+            logger.exception("retrieve_memories failed")
+            return {
+                "retrieval_results": [],
+            }
+    return retrieve_memories
+
+def retrieval_evaluation(state: GraphState) -> dict:
+    results = state.get("retrieval_results", [])
+    if len(results) == 0:
+        return {"retry_count": state["retry_count"]+1, "retry_feedback": "No memories were found. Try using broader or more general terms."}
+    elif results[0].get("similarity") < 0.4:
+        return {"retry_count": state["retry_count"]+1, "retry_feedback": f"Best match scored {results[0].get("similarity"):.2f} out of 1.0 which is below the relevance threshold. Try rephrasing with different keywords or broader terms."}
+    
+    return {"retry_count": state["retry_count"], "retry_feedback": None}
+
+def decide_retry(state: GraphState) -> Literal["retry", "respond"]:
+    if (state.get("retry_count") or 0) >= 2:
+        return "respond"
+    
+    if state.get("retry_feedback") is not None:
+        return "retry"
+    
+    return "respond"
+
+def _build_chat_prompt(memory_context: str) -> str:
+    return RESPONSE_SYSTEM_PROMPT.format(memory_context=memory_context)
+
+async def respond(state: GraphState) -> dict:
+    try:
+        memory_context = _format_retrieval_results_for_prompt(state.get("retrieval_results", []))
+        prompt = _build_chat_prompt(memory_context)
+        messages = [SystemMessage(content=prompt)] + state.get("messages", [])
+        response = await chat_model.ainvoke(messages)
+        return {"messages" : [response]}
+    except Exception as e:
+        raise Exception(f"Error responding: {e}")
+
 def _format_messages(messages: List[Message]) -> List[Dict]:
     """Format a list of messages into a list of dictionaries"""
     formatted_messages = []
@@ -248,86 +458,3 @@ def compact_conversation(messages: List[Message]) -> List[Dict]:
     except Exception as e:
         raise Exception(f"Error compacting conversation: {e}")
 
-async def chat(user: UserModel, db: AsyncSession,user_message: str,messages: List[Message]) -> str:
-    try:
-        search_memories_tool = create_search_memories_tool(db, user)
-        token_count = count_conversation_tokens(messages)
-        if token_count > 80000:
-            compacted_messages = compact_conversation(messages)
-            conversation_history = compacted_messages
-        else:
-            conversation_history = _format_messages(messages)
-
-        tools = [
-            {
-                "type": "function",
-                "name": "search_memories",
-                "description": "Search for relevant memories by semantic similarity.",
-                "strict": True,
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "The search query to find relevant memories"}
-                    },
-                    "required": ["query"],
-                    "additionalProperties": False
-                }
-            }
-        ]
-        input_messages = conversation_history + [
-            {"role": "user", "content": user_message}
-        ]
-        stream = client.responses.create(
-            tools=tools,
-            model="gpt-4o-mini",
-            instructions=_build_chat_prompt(),
-            input=input_messages,
-            stream=True,
-        )
-        tool_call_made = False
-
-        for event in stream:
-            if event.type == "response.output_item.done" and getattr(event, "item", None) and getattr(event.item, "type", None) == "function_call":
-                tool_call_made = True
-                if isinstance(event.item.arguments, str):
-                    args = json.loads(event.item.arguments)
-                    arguments_str = event.item.arguments
-                else:
-                    args = event.item.arguments or {}
-                    arguments_str = json.dumps(args)
-                input_messages.append({
-                    "type": "function_call",
-                    "call_id": event.item.call_id,
-                    "name": event.item.name,
-                    "arguments": arguments_str,
-                })
-                if event.item.name == "search_memories":
-                    result = await search_memories_tool(args.get("query", ""))
-                    input_messages.append({
-                        "type": "function_call_output",
-                        "call_id": event.item.call_id,
-                        "output": str(result),
-                    })
-            elif event.type == "response.output_text.delta":
-                delta = getattr(event, "delta", None) or getattr(event, "text", "") or ""
-                if delta:
-                    #logger.info("stream chunk (first response): %r", delta)
-                    #print(f"[stream] first response chunk: {delta!r}", flush=True)
-                    yield delta
-
-        if tool_call_made:
-            final_stream = client.responses.create(
-                tools=tools,
-                model="gpt-4o-mini",
-                instructions=_build_chat_prompt(),
-                input=input_messages,
-                stream=True,
-            )
-            for event in final_stream:
-                if event.type == "response.output_text.delta":
-                    delta = getattr(event, "delta", None) or getattr(event, "text", "") or ""
-                    if delta:
-                        yield delta
-    
-    except Exception as e:
-        raise Exception(f"Error formulating a response: {e}")
