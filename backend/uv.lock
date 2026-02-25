@@ -810,6 +810,19 @@ wheels = [
 ]
 
 [[package]]
+name = "langgraph-cli"
+version = "0.4.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "langgraph-sdk", marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/08/04/0764d07b1c5601cdb73f6949fab80ce867983684d024f3de48cce1d8aba2/langgraph_cli-0.4.12.tar.gz", hash = "sha256:7aa6ca37d6f60c75f2ea310f4cae233f59fe0026e5ef43dab34c04d1cb61c7a6", size = 838313, upload-time = "2026-01-23T13:34:16.211Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/06/0adb15491518db7b0617bbc3f0894fbc1ffa74b1fc0c051217b1c1a538f5/langgraph_cli-0.4.12-py3-none-any.whl", hash = "sha256:ce85901b307dfa14408c6e4e122a2ccafe3abc53f6bcc99f5080715c1a0a8347", size = 41159, upload-time = "2026-01-23T13:34:14.65Z" },
+]
+
+[[package]]
 name = "langgraph-prebuilt"
 version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
@@ -899,6 +912,7 @@ dependencies = [
     { name = "fastembed" },
     { name = "langchain-openai" },
     { name = "langgraph" },
+    { name = "langgraph-cli" },
     { name = "onnxruntime" },
     { name = "openai" },
     { name = "psycopg2-binary" },
@@ -919,6 +933,7 @@ requires-dist = [
     { name = "fastembed", specifier = ">=0.3.0" },
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langgraph", specifier = ">=1.0.9" },
+    { name = "langgraph-cli", specifier = ">=0.4.12" },
     { name = "onnxruntime", specifier = ">=1.19,<1.24" },
     { name = "openai" },
     { name = "psycopg2-binary", specifier = "==2.9.11" },

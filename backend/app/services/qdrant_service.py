@@ -10,9 +10,9 @@ from qdrant_client.models import (
     PayloadSchemaType,
     SparseVectorParams,
     SparseVector,
-    PreFetch,
+    Prefetch,
     FusionQuery,
-    Fusion
+    Fusion,
 )
 import uuid
 from dotenv import load_dotenv
@@ -54,6 +54,17 @@ def _ensure_is_superseded_index(collection_name: str):
         )
     except Exception:
         pass
+
+
+def ensure_all_collection_indexes():
+    """Run at startup: ensure user_id and is_superseded indexes on every existing collection. Idempotent."""
+    try:
+        resp = qdrant_client.get_collections()
+        for col in resp.collections:
+            _ensure_user_id_index(col.name)
+            _ensure_is_superseded_index(col.name)
+    except Exception as e:
+        raise Exception(f"Error ensuring Qdrant indexes: {e}") from e
 
 
 def create_collection(name: str = "memories", vector_size: int = 1536):
@@ -142,14 +153,18 @@ def search_points(collection_name: str, query: str, dense_query_vector: list[flo
         search_result = qdrant_client.query_points(
             collection_name=collection_name,
             prefetch=[
-                PreFetch(query=SparseVector(indices=sparse_query_vector.indices, values=sparse_query_vector.values),
-                using="sparse",
-                limit=20
+                Prefetch(
+                    query=SparseVector(
+                        indices=sparse_query_vector.indices,
+                        values=sparse_query_vector.values,
+                    ),
+                    using="sparse",
+                    limit=20,
                 ),
-                PreFetch(
-                query=dense_query_vector,
-                using="dense",
-                limit=20,
+                Prefetch(
+                    query=dense_query_vector,
+                    using="dense",
+                    limit=20,
                 ),
             ],
             query=FusionQuery(fusion=Fusion.RRF),

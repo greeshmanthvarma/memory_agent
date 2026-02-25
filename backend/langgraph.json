@@ -1,0 +1,7 @@
+{
+    "dependencies": ["."],
+    "graphs": {
+      "agent": "./app/services/llm_service.py:build_graph"
+    },
+    "env": ".env"
+  }

@@ -20,39 +20,24 @@ chat_router = APIRouter(
 @chat_router.post("/")
 async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
-        await db_get_conversation(request.conversation_id, user.id, db)
-        existing_messages = await db_get_conversation_messages(request.conversation_id, db)
+        conversation = await db_get_conversation(request.conversation_id, user.id, db)
+        thread_id = getattr(conversation, "thread_id", None) or f"{user.id}_{request.conversation_id}"
 
         user_query = MessageModel(
             content=request.user_message,
-            role = "user",
-            conversation_id=request.conversation_id
+            role="user",
+            conversation_id=request.conversation_id,
         )
+        await db_create_message(user_query, db)
 
-        user_query_response = await db_create_message(user_query, db)
-
-        messages_list= [
-            Message(
-                id= m.id,
-                content=m.content,
-                role=m.role,
-                created_at=m.created_at,
-                updated_at=m.updated_at
-            ) for m in existing_messages
-        ]+[
-            Message(
-                id=user_query_response.id,
-                content=user_query_response.content,
-                role=user_query_response.role,
-                created_at=user_query_response.created_at,
-                updated_at=user_query_response.updated_at
-            )
-        ]
-        
         async def stream():
             full = []
             try:
-                async for chunk in chat_service(user=user, db=db, user_message=request.user_message, messages=messages_list):
+                async for chunk in chat_service(
+                    user=user,
+                    user_message=request.user_message,
+                    thread_id=thread_id,
+                ):
                     full.append(chunk)
                     yield chunk
                     await asyncio.sleep(0)

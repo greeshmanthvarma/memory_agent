@@ -12,10 +12,11 @@ import asyncio
 from app.db_models import UserModel
 from app.models import MemoryCreate, MemoryUpdate
 from langchain_openai import ChatOpenAI
-from langchain.schema.runnable import RunnableConfig
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import StateGraph, START, END
 from app.state_models import GraphState, QueryAnalysisOutput, ReflectionOutput, ReflectionInput
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from app.services.embedding_service import embed_text, sparse_embed_text
 from app.services.memory_service import get_memory_by_query, create_memory, update_memory
 from app.services.db_service import (
@@ -446,7 +447,10 @@ def _build_query_analysis_prompt(state: GraphState) -> str:
 async def query_analysis(state: GraphState) -> dict:
     try:
         prompt = _build_query_analysis_prompt(state)
-        response = await query_analysis_model.with_structured_output(QueryAnalysisOutput).ainvoke([
+        response = await query_analysis_model.with_structured_output(
+            QueryAnalysisOutput,
+            method="function_calling",
+        ).ainvoke([
             SystemMessage(content=prompt),
             HumanMessage(content=state["user_message"])
         ])
@@ -552,10 +556,19 @@ async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
 
 def retrieval_evaluation(state: GraphState) -> dict:
     results = state.get("retrieval_results", [])
+    current_retry = state.get("retry_count", 0)
     if len(results) == 0:
-        return {"retry_count": state["retry_count"]+1, "retry_feedback": "No memories were found. Try using broader or more general terms."}
+        return {
+            "retry_count": current_retry + 1,
+            "retry_feedback": "No memories were found. Try using broader or more general terms.",
+        }
     elif results[0].get("similarity") < 0.4:
-        return {"retry_count": state["retry_count"]+1, "retry_feedback": f"Best match scored {results[0].get("similarity"):.2f} out of 1.0 which is below the relevance threshold. Try rephrasing with different keywords or broader terms."}
+        best = results[0].get("similarity") or 0.0
+        return {
+            "retry_count": current_retry + 1,
+            "retry_feedback": f"""Best match scored {best:.2f} out of 1.0 which is below the relevance threshold.
+                Try rephrasing with different keywords or broader terms.""",
+        }
     
     return {"retry_count": state["retry_count"], "retry_feedback": None}
 
@@ -589,7 +602,7 @@ async def create_reflection_node(user: UserModel):
             memory_context = _format_retrieval_results_for_prompt(input.retrieval_results)
             user_message = REFLECTION_USER_TEMPLATE.format(user_message=input.user_message, assistant_response=input.assistant_response, memory_context=memory_context)
             messages = [SystemMessage(content=prompt)] + [HumanMessage(content=user_message)]
-            response = await reflection_model.with_structured_output(ReflectionOutput).ainvoke(messages)
+            response = await reflection_model.with_structured_output(ReflectionOutput, method="function_calling").ainvoke(messages)
             async with AsyncSessionLocal() as session:
                 await enqueue_memory_action(session, response, user.id, user.collection_name)
         except Exception as e:
@@ -664,6 +677,50 @@ def build_graph():
     graph.add_edge("respond", END)
     return graph
     
+async def chat(user: UserModel, user_message: str, thread_id: str):
+    """
+    Entry point for the /api/chat endpoint.
+    Uses checkpointed graph state (keyed by thread_id) for chat; only the new
+    user message is passed. The route persists messages to DB for the frontend.
+    """
+    conn_string = os.getenv("DATABASE_URL")
+    if not conn_string:
+        raise RuntimeError("DATABASE_URL is required for checkpointing")
+    # Checkpointer expects plain postgresql:// URI, not postgresql+asyncpg://
+    checkpointer_conn = conn_string.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+    async with AsyncPostgresSaver.from_conn_string(checkpointer_conn) as checkpointer:
+        builder = build_graph()
+        graph = builder.compile(checkpointer=checkpointer)
+
+        initial_state: GraphState = {
+            "messages": [HumanMessage(content=user_message)],
+            "user_message": user_message,
+            "retry_count": 0,
+        }
+
+        config: RunnableConfig = {
+            "configurable": {
+                "thread_id": thread_id,
+                "user_id": user.id,
+                "collection_name": user.collection_name,
+            }
+        }
+
+        async for chunk in graph.astream(
+            initial_state,
+            config=config,
+            stream_mode="messages",
+        ):
+            if isinstance(chunk, tuple):
+                message, _metadata = chunk
+            else:
+                message = chunk
+            content = getattr(message, "content", None)
+            if isinstance(content, str) and content:
+                yield content
+
+
 def _format_messages(messages: List[Message]) -> List[Dict]:
     """Format a list of messages into a list of dictionaries"""
     formatted_messages = []

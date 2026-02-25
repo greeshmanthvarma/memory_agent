@@ -11,7 +11,8 @@ sparse_embedder = SparseTextEmbedding(model_name="prithivida/Splade_PP_en_v1")
 
 def sparse_embed_text(text: str) -> SparseEmbedding:
     try:
-        return sparse_embedder.embed([text])[0]
+        result = list(sparse_embedder.embed([text]))
+        return result[0]
     except Exception as e:
         raise Exception(f"Error sparse embedding text: {e}")
 

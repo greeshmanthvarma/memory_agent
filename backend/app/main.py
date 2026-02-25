@@ -58,6 +58,8 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Database will be initialized on startup
 from app.database import engine, Base
 from app.services.llm_service import run_mutation_worker
+from app.services.qdrant_service import ensure_all_collection_indexes
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 
 @app.on_event("startup")
@@ -65,6 +67,26 @@ async def startup_event():
     # Create database tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Checkpointer: run setup once so LangGraph checkpoint tables exist.
+    # It expects a plain postgresql:// URI, not postgresql+asyncpg:// (SQLAlchemy driver).
+    conn_string = os.getenv("DATABASE_URL")
+    if conn_string:
+        checkpointer_conn = conn_string.replace("postgresql+asyncpg://", "postgresql://", 1)
+        try:
+            async with AsyncPostgresSaver.from_conn_string(checkpointer_conn) as checkpointer:
+                await checkpointer.setup()
+            logger.info("LangGraph checkpointer setup completed")
+        except Exception as e:
+            logger.warning("Checkpointer setup failed (chat checkpointing may fail): %s", e)
+
+    # Qdrant: ensure user_id and is_superseded indexes on all existing collections
+    try:
+        ensure_all_collection_indexes()
+        logger.info("Qdrant indexes ensured")
+    except Exception as e:
+        logger.warning("Qdrant ensure indexes failed: %s", e)
+
     app.state.mutation_worker_task = asyncio.create_task(run_mutation_worker())
 
 
