@@ -27,3 +27,16 @@ class QueryAnalysisOutput(BaseModel):
     intent: Literal["general_knowledge", "personal", "ambiguous"]
     retrieval_query: str | None = None
     filters: dict = {} 
+
+class ReflectionOutput(BaseModel):
+    action: Literal["none", "create", "update", "merge"]
+    reasoning: str
+    memory_content: str | None = None
+    target_memory_ids: list[str] = []
+    memory_category: Literal["fact", "preference", "event"] | None = None
+    tags: list[str] = []
+
+class ReflectionInput(BaseModel):
+    user_message: str
+    assistant_response: str
+    retrieval_results: list

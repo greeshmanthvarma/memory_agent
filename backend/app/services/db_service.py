@@ -1,7 +1,9 @@
-from app.db_models import MemoryModel, MessageModel, UserModel, ConversationModel
+from app.db_models import MemoryModel, MessageModel, UserModel, ConversationModel, MemoryMutationQueueModel
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.sql import func
 
 async def db_create_memory(memory: MemoryModel,db: AsyncSession):
     try:
@@ -174,3 +176,63 @@ async def db_update_conversation(conversation_id: int, title: str, user_id: int,
     except Exception as e:
         await db.rollback()
         raise Exception(f"Error updating conversation by id {conversation_id}: {e}")
+
+
+
+
+async def db_enqueue_memory_mutation(user_id: int, collection_name: str, payload: dict, db: AsyncSession) -> int:
+    """Enqueue a mutation job. Returns the job id."""
+    row = MemoryMutationQueueModel(
+        user_id=user_id,
+        collection_name=collection_name,
+        payload=payload,
+        status="pending",
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row.id
+
+
+async def db_claim_next_mutation_job(db: AsyncSession):
+    """
+    Claim the oldest pending job (FOR UPDATE SKIP LOCKED). Returns the row or None.
+    Caller must mark_done or mark_failed when finished.
+    """
+    try:
+        result = await db.execute(
+            select(MemoryMutationQueueModel)
+            .where(MemoryMutationQueueModel.status == "pending")
+            .order_by(MemoryMutationQueueModel.created_at)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        row = result.scalar_one_or_none()
+        if not row:
+            return None
+        row.status = "processing"
+        row.started_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(row)
+        return row
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"Error claiming mutation job: {e}")
+
+
+async def db_mark_mutation_done(job_id: int, db: AsyncSession) -> None:
+    await db.execute(
+        update(MemoryMutationQueueModel)
+        .where(MemoryMutationQueueModel.id == job_id)
+        .values(status="done", finished_at=func.now())
+    )
+    await db.commit()
+
+
+async def db_mark_mutation_failed(job_id: int, error_message: str, db: AsyncSession) -> None:
+    await db.execute(
+        update(MemoryMutationQueueModel)
+        .where(MemoryMutationQueueModel.id == job_id)
+        .values(status="failed", finished_at=func.now(), error_message=error_message)
+    )
+    await db.commit()

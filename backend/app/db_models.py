@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, ARRAY, Text, Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -31,6 +31,7 @@ class MemoryModel(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     importance_score = Column(Float, default=0.0)
     tags = Column(ARRAY(String), default=list)
+    memory_category = Column(String(32), nullable=True, index=True)
     related_memories = Column(ARRAY(Integer), default=list)
     superseded_by_id = Column(Integer, ForeignKey("memories.id"), nullable=True, index=True)
     last_accessed_at = Column(DateTime, nullable=True)
@@ -101,3 +102,19 @@ class EvalsModel(Base):
     node_name = Column(String, nullable=False, index=True)
     started_at = Column(DateTime, nullable=False)
     duration_ms = Column(Float, nullable=False)
+
+
+class MemoryMutationQueueModel(Base):
+    """Postgres-backed queue for memory mutations (create/update/merge). Survives restarts; safe for multiple instances."""
+    __tablename__ = "memory_mutation_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    collection_name = Column(String, nullable=False)
+    payload = Column(JSONB, nullable=False)  # ReflectionOutput as dict
+    status = Column(String(20), nullable=False, default="pending", index=True)  # pending, processing, done, failed
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0, nullable=False)

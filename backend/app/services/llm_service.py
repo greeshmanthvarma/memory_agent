@@ -8,13 +8,72 @@ from app.models import Message
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 import tiktoken
+import asyncio
 from app.db_models import UserModel
+from app.models import MemoryCreate, MemoryUpdate
 from langchain_openai import ChatOpenAI
-from app.state_models import GraphState, QueryAnalysisOutput
+from langchain.schema.runnable import RunnableConfig
+from langgraph.graph import StateGraph, START, END
+from app.state_models import GraphState, QueryAnalysisOutput, ReflectionOutput, ReflectionInput
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.services.embedding_service import embed_text, sparse_embed_text
-from app.services.memory_service import get_memory_by_query
+from app.services.memory_service import get_memory_by_query, create_memory, update_memory
+from app.services.db_service import (
+    db_enqueue_memory_mutation,
+    db_claim_next_mutation_job,
+    db_mark_mutation_done,
+    db_mark_mutation_failed,
+)
+from app.database import AsyncSessionLocal
 load_dotenv()
+
+MUTATION_WORKER_POLL_SECONDS = 2.0
+
+async def enqueue_memory_action(
+    db: AsyncSession, reflection_output: ReflectionOutput, user_id: int, collection_name: str
+) -> None:
+    """Enqueue a mutation in Postgres. Processed by run_mutation_worker(). Returns immediately after insert."""
+    if reflection_output.action == "none" or not reflection_output.memory_content:
+        return
+    payload = reflection_output.model_dump()
+    await db_enqueue_memory_mutation(user_id, collection_name, payload, db)
+
+
+async def run_mutation_worker() -> None:
+    """
+    Long-running worker that claims and processes rows from memory_mutation_queue.
+    Start once on app startup (e.g. asyncio.create_task(run_mutation_worker())).
+    """
+    while True:
+        try:
+            async with AsyncSessionLocal() as session:
+                job = await db_claim_next_mutation_job(session)
+            if job is None:
+                await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
+                continue
+            try:
+                output = ReflectionOutput.model_validate(job.payload)
+                async with AsyncSessionLocal() as session:
+                    try:
+                        await apply_memory_action(output, session, job.user_id, job.collection_name)
+                        await session.commit()
+                    except Exception:
+                        await session.rollback()
+                        raise
+                async with AsyncSessionLocal() as session:
+                    await db_mark_mutation_done(job.id, session)
+            except Exception as e:
+                logger.exception("mutation worker failed for job_id=%s user_id=%s", job.id, job.user_id)
+                try:
+                    async with AsyncSessionLocal() as session:
+                        await db_mark_mutation_failed(job.id, str(e), session)
+                except Exception:
+                    logger.exception("failed to mark job %s as failed", job.id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("mutation worker loop error")
+            await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
 
 logger = logging.getLogger(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -125,6 +184,96 @@ Tone:
 - Never mention memory retrieval mechanics - no "based on retrieved memories..." or "I found a memory..."
 - Simply incorporate memory information seamlessly as a good friend would
 - Never say you couldn't find memories or that you searched for something
+"""
+REFLECTION_SYSTEM_PROMPT = """
+You are the memory management component of a personal AI assistant.
+Your job is to analyze a conversation turn and decide whether any memory action is needed.
+
+You will be given:
+- The user's message
+- The assistant's response
+- Existing memories that were retrieved for this turn
+
+## Memory Actions
+
+Decide on ONE of the following actions:
+
+**none**: No memory action needed.
+- The conversation is casual or factual with nothing personal worth remembering
+- The information is already captured in existing memories
+- The information is too vague or temporary to be useful later
+
+**create**: Create a new memory.
+- The conversation reveals something new and specific about the user
+- It is not already captured in existing memories
+- It would meaningfully personalize future conversations
+
+**update**: Update exactly one existing memory.
+- New information refines, corrects, or extends that memory
+- The existing memory is still partially valid but needs modification
+- Always prefer update over create if a relevant memory already exists
+- Use target_memory_ids with exactly ONE id
+
+**merge**: Merge two or more existing memories into one.
+- Multiple existing memories cover the same topic redundantly
+- A single consolidated memory would be more useful than several fragmented ones
+- Use target_memory_ids with TWO or more ids
+- Set memory_content to the fully synthesized merged text capturing all meaningful information from the individual memories
+
+## What is worth remembering
+
+Good candidates:
+- User preferences and opinions ("user prefers X over Y")
+- Personal facts ("user lives in X", "user works as Y")
+- Goals and intentions ("user is working toward X")
+- Significant events ("user started a new job", "user completed X")
+- Patterns and habits ("user works out regularly", "user reads before bed")
+
+Not worth remembering:
+- Greetings and pleasantries
+- One-off temporary requests ("remind me to buy milk")
+- General knowledge questions with no personal relevance
+- Vague statements that lack specific information
+- Anything already well captured in existing memories
+
+## Special rules for event memories
+
+- Memories categorized as "event" should almost always use the "create" action
+- Each occurrence of an event (e.g. workouts, trips, meetings) should be stored as a separate memory
+- Do NOT use "update" or "merge" to collapse or overwrite past events unless the existing memory is clearly a duplicate of the SAME event on the SAME day
+- Facts and preferences can be updated or merged; events generally should not be deduplicated
+- If multiple similar events suggest a pattern, you may create a new fact or preference memory capturing the pattern (e.g. "works out regularly") without merging the individual event memories
+
+## Output Format
+
+Fields:
+- action: the chosen action
+- reasoning: brief explanation of why this action was chosen
+- memory_content: full memory text written in neutral third person. null if action is none
+- target_memory_ids: for update exactly one id, for merge two or more ids, empty list for none or create
+- memory_category: fact, preference, or event. null if action is none
+- tags: relevant tags for the memory, empty list if action is none
+
+{{
+    "action": "none" | "create" | "update" | "merge",
+    "reasoning": "...",
+    "memory_content": "..." | null,
+    "target_memory_ids": [],
+    "memory_category": "fact" | "preference" | "event" | null,
+    "tags": []
+}}
+
+Return only the JSON object. No preamble, no explanation, no markdown.
+"""
+REFLECTION_USER_TEMPLATE = """
+User message: {user_message}
+
+Assistant response: {assistant_response}
+
+Existing retrieved memories:
+{memory_context}
+
+Decide what memory action to take based on this conversation turn.
 """
 
 def _build_summary_prompt(messages: str) -> str:
@@ -372,31 +521,34 @@ def _format_retrieval_results_for_prompt(results: List[dict], max_items: int = 5
     return "\n\n".join(lines)
 
 
-def create_retrieve_memories_node(db: AsyncSession, user: UserModel):
-    async def retrieve_memories(state: GraphState) -> dict:
-        """
-        Retrieve memories from the database based on the retrieval query.
-        Returns raw results, scores, and a formatted string with temporal info for the prompt.
-        """
-        try:
-            retrieval_query = (state.get("retrieval_query") or "").strip() or state.get("user_message", "")
-            dense_query_vector = embed_text(retrieval_query)
-            sparse_query_vector = sparse_embed_text(retrieval_query)
+
+async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
+    """
+    Retrieve memories from the database based on the retrieval query.
+    Returns raw results, scores, and a formatted string with temporal info for the prompt.
+    """
+    try:
+        retrieval_query = (state.get("retrieval_query") or "").strip() or state.get("user_message", "")
+        dense_query_vector = embed_text(retrieval_query)
+        sparse_query_vector = sparse_embed_text(retrieval_query)
+        user_id = config["configurable"]["user_id"]
+        collection_name = config["configurable"]["collection_name"]
+        async with AsyncSessionLocal() as db:
             results = await get_memory_by_query(
                 retrieval_query, dense_query_vector, sparse_query_vector,
-                user.collection_name, user.id, db
+                collection_name, user_id, db
             )
-            if len(results) == 0:
-                return {
-                    "retrieval_results": [],
-                }
-            return {"retrieval_results": results}
-        except Exception as e:
-            logger.exception("retrieve_memories failed")
+        if len(results) == 0:
             return {
                 "retrieval_results": [],
             }
-    return retrieve_memories
+        return {"retrieval_results": results}
+    except Exception as e:
+        logger.exception("retrieve_memories failed")
+        return {
+            "retrieval_results": [],
+        }
+
 
 def retrieval_evaluation(state: GraphState) -> dict:
     results = state.get("retrieval_results", [])
@@ -419,6 +571,7 @@ def decide_retry(state: GraphState) -> Literal["retry", "respond"]:
 def _build_chat_prompt(memory_context: str) -> str:
     return RESPONSE_SYSTEM_PROMPT.format(memory_context=memory_context)
 
+
 async def respond(state: GraphState) -> dict:
     try:
         memory_context = _format_retrieval_results_for_prompt(state.get("retrieval_results", []))
@@ -429,6 +582,88 @@ async def respond(state: GraphState) -> dict:
     except Exception as e:
         raise Exception(f"Error responding: {e}")
 
+async def create_reflection_node(user: UserModel):
+    async def reflection(input: ReflectionInput):
+        try:
+            prompt = REFLECTION_SYSTEM_PROMPT
+            memory_context = _format_retrieval_results_for_prompt(input.retrieval_results)
+            user_message = REFLECTION_USER_TEMPLATE.format(user_message=input.user_message, assistant_response=input.assistant_response, memory_context=memory_context)
+            messages = [SystemMessage(content=prompt)] + [HumanMessage(content=user_message)]
+            response = await reflection_model.with_structured_output(ReflectionOutput).ainvoke(messages)
+            async with AsyncSessionLocal() as session:
+                await enqueue_memory_action(session, response, user.id, user.collection_name)
+        except Exception as e:
+            logger.exception("Reflection/mutation failed")
+            raise Exception(f"Error reflecting: {e}") from e
+    return reflection
+
+async def apply_memory_action(
+    reflection: ReflectionOutput, db: AsyncSession, user_id: int, collection_name: str
+) -> None:
+    if reflection.action == "none" or not reflection.memory_content:
+        return
+    try:
+        dense_embedding = embed_text(reflection.memory_content)
+        sparse_embedding = sparse_embed_text(reflection.memory_content)
+        memory_create = MemoryCreate(
+            content=reflection.memory_content,
+            memory_type="implicit",
+            memory_category=reflection.memory_category,
+            tags=reflection.tags or [],
+        )
+        bypass_dedup = reflection.action in ("update", "merge")
+        result = await create_memory(
+            memory_create, dense_embedding, sparse_embedding,
+            user_id, collection_name, db, bypass_similarity_check=bypass_dedup
+        )
+        new_memory_id = result["memory"].id
+
+        if reflection.action == "update":
+            if reflection.target_memory_ids:
+                old_id = int(reflection.target_memory_ids[0])
+                await update_memory(old_id, MemoryUpdate(superseded_by_id=new_memory_id), None, user_id, collection_name, db)
+        elif reflection.action == "merge":
+            for target_id in reflection.target_memory_ids:
+                await update_memory(int(target_id), MemoryUpdate(superseded_by_id=new_memory_id), None, user_id, collection_name, db)
+    except Exception as e:
+        logger.exception("apply_memory_action failed")
+        raise Exception(f"Error applying memory action: {e}") from e
+
+
+def build_graph():
+    graph = StateGraph(GraphState)
+
+    graph.add_node("query_analysis", query_analysis)
+    graph.add_node("retrieve_memories", retrieve_memories)
+    graph.add_node("retrieval_evaluation", retrieval_evaluation)
+    graph.add_node("respond", respond)
+
+
+    graph.add_edge(START, "query_analysis")
+
+    graph.add_conditional_edges(
+        "query_analysis",
+        should_retrieve,
+        {
+            "retrieve": "retrieve_memories",
+            "respond": "respond",
+        },
+    )
+
+    graph.add_edge("retrieve_memories", "retrieval_evaluation")
+
+    graph.add_conditional_edges(
+        "retrieval_evaluation",
+        decide_retry,
+        {
+            "retry": "query_analysis",
+            "respond": "respond",
+        },
+    )
+
+    graph.add_edge("respond", END)
+    return graph
+    
 def _format_messages(messages: List[Message]) -> List[Dict]:
     """Format a list of messages into a list of dictionaries"""
     formatted_messages = []

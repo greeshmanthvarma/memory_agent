@@ -57,6 +57,7 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Database will be initialized on startup
 from app.database import engine, Base
+from app.services.llm_service import run_mutation_worker
 
 
 @app.on_event("startup")
@@ -64,25 +65,21 @@ async def startup_event():
     # Create database tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    
-    # app.state.db_ping_task = asyncio.create_task(db_ping())
+    app.state.mutation_worker_task = asyncio.create_task(run_mutation_worker())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    task = getattr(app.state, "mutation_worker_task", None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.warning("Error stopping mutation worker: %s", e)
     await engine.dispose()
-    
-
-#    db_ping_task = getattr(app.state, "db_ping_task", None)
-#    if db_ping_task:
-#        db_ping_task.cancel()
-#        try:
-#            await db_ping_task
-#        except asyncio.CancelledError:
-#            pass
-#        except Exception as e:
-#            logger.warning(f"Error canceling db ping task: {str(e)}")
 
 @app.get("/")
 async def root():

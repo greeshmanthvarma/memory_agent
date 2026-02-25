@@ -33,6 +33,7 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
         user_id=db_memory.user_id,
         importance_score=db_memory.importance_score,
         tags=db_memory.tags,
+        memory_category=getattr(db_memory, "memory_category", None),
         related_memories=db_memory.related_memories,
         last_accessed_at=db_memory.last_accessed_at,
         last_updated_at=db_memory.last_updated_at,
@@ -109,6 +110,8 @@ async def update_memory(memory_id: int, memory: MemoryUpdate, dense_embedding: O
     try:
         db_memory = await db_get_memory_by_id(memory_id, user_id, db)
         updates = memory.model_dump(exclude_unset=True)
+        
+        is_superseded = True if updates.get("superseded_by_id") else False
 
         memory_type = db_memory.memory_type
         payload = {
@@ -118,7 +121,7 @@ async def update_memory(memory_id: int, memory: MemoryUpdate, dense_embedding: O
             "memory_type": memory_type.value,
             "importance_score": updates.get("importance_score", db_memory.importance_score),
             "tags": updates.get("tags", db_memory.tags or []),
-            "is_superseded": False,
+            "is_superseded": is_superseded,
         }
         current_dense, current_sparse = get_point_vectors(collection_name, db_memory.embedding_id)
         dense_to_use = dense_embedding if dense_embedding is not None else current_dense
