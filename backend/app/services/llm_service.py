@@ -33,11 +33,16 @@ MUTATION_WORKER_POLL_SECONDS = 2.0
 async def enqueue_memory_action(
     db: AsyncSession, reflection_output: ReflectionOutput, user_id: int, collection_name: str
 ) -> None:
-    """Enqueue a mutation in Postgres. Processed by run_mutation_worker(). Returns immediately after insert."""
+    """
+    Enqueue a mutation in Postgres. Processed by run_mutation_worker().
+    Returns immediately after insert.
+    """
     if reflection_output.action == "none" or not reflection_output.memory_content:
+        print(f"[reflection] enqueue skipped (no-op) action={reflection_output.action} user_id={user_id} collection={collection_name}", flush=True)
         return
     payload = reflection_output.model_dump()
-    await db_enqueue_memory_mutation(user_id, collection_name, payload, db)
+    job_id = await db_enqueue_memory_mutation(user_id, collection_name, payload, db)
+    print(f"[reflection] Enqueued mutation job_id={job_id} user_id={user_id} collection={collection_name} action={reflection_output.action}", flush=True)
 
 
 async def run_mutation_worker() -> None:
@@ -45,6 +50,7 @@ async def run_mutation_worker() -> None:
     Long-running worker that claims and processes rows from memory_mutation_queue.
     Start once on app startup (e.g. asyncio.create_task(run_mutation_worker())).
     """
+    print("[mutation worker] Starting loop", flush=True)
     while True:
         try:
             async with AsyncSessionLocal() as session:
@@ -53,30 +59,66 @@ async def run_mutation_worker() -> None:
                 await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
                 continue
             try:
+                print(f"[mutation worker] Claimed job_id={job.id} user_id={job.user_id} collection={job.collection_name} status={job.status}", flush=True)
                 output = ReflectionOutput.model_validate(job.payload)
                 async with AsyncSessionLocal() as session:
                     try:
+                        print(f"[mutation worker] Applying action job_id={job.id} user_id={job.user_id} collection={job.collection_name} action={output.action}", flush=True)
                         await apply_memory_action(output, session, job.user_id, job.collection_name)
                         await session.commit()
+                        print(f"[mutation worker] Done job_id={job.id} user_id={job.user_id} collection={job.collection_name}", flush=True)
                     except Exception:
                         await session.rollback()
                         raise
                 async with AsyncSessionLocal() as session:
                     await db_mark_mutation_done(job.id, session)
             except Exception as e:
-                logger.exception("mutation worker failed for job_id=%s user_id=%s", job.id, job.user_id)
+                print(f"[mutation worker] FAILED job_id={job.id} user_id={job.user_id} error={e}", flush=True)
                 try:
                     async with AsyncSessionLocal() as session:
                         await db_mark_mutation_failed(job.id, str(e), session)
-                except Exception:
-                    logger.exception("failed to mark job %s as failed", job.id)
+                except Exception as mark_err:
+                    print(f"[mutation worker] failed to mark job {job.id} as failed: {mark_err}", flush=True)
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.exception("mutation worker loop error")
+        except Exception as e:
+            print(f"[mutation worker] loop error: {e}", flush=True)
             await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
 
 logger = logging.getLogger(__name__)
+
+
+def _log_state(node_name: str, state: GraphState, config: RunnableConfig | None = None) -> None:
+    """Log a compact, safe summary of graph state at node entry (no full message/retrieval content)."""
+    try:
+        msg_count = len(state.get("messages") or [])
+        user_msg = (state.get("user_message") or "")[:200]
+        if len(state.get("user_message") or "") > 200:
+            user_msg += "..."
+        summary = {
+            "node": node_name,
+            "user_message_len": len(state.get("user_message") or ""),
+            "user_message_preview": user_msg,
+            "messages_count": msg_count,
+            "intent": state.get("intent"),
+            "retrieval_query": (state.get("retrieval_query") or "")[:150] or None,
+            "retry_count": state.get("retry_count", 0),
+            "retry_feedback": (state.get("retry_feedback") or "")[:200] if state.get("retry_feedback") else None,
+            "retrieval_results_count": len(state.get("retrieval_results") or []),
+        }
+        if (state.get("retrieval_results") or []):
+            sims = [r.get("similarity") for r in (state.get("retrieval_results") or [])[:3]]
+            summary["top_similarities"] = sims
+        if config and isinstance(config.get("configurable"), dict):
+            c = config["configurable"]
+            summary["thread_id"] = c.get("thread_id")
+            summary["user_id"] = c.get("user_id")
+            summary["collection_name"] = c.get("collection_name")
+        print(f"[graph state at {node_name}] {json.dumps(summary, default=str)}", flush=True)
+    except Exception as e:
+        print(f"[graph state] failed to log state at {node_name}: {e}", flush=True)
+
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 query_analysis_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
@@ -86,54 +128,40 @@ consolidation_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
 
 
 QUERY_ANALYSIS_SYSTEM_PROMPT = """
-You are the query analysis component of a personal memory assistant. Your job is to analyze the user's message and prepare it for memory retrieval.
+You are the query analysis component of a personal memory assistant. Your output is used to search **only the user's memory store** — sentences about the user (where they live, preferences, past events, etc.). You are NOT building a query for a search engine or the open web.
 
 ## Your Task
-Analyze the user message and return a JSON object with:
-1. Classify the intent
-2. Generate an optimized retrieval query if needed
-3. Extract any filters if applicable
+Return JSON with: (1) intent, (2) retrieval_query used to find **relevant memories about the user**, (3) filters.
 
-## Intent Classification
+## Intent
 
-Classify the intent as one of three categories:
+- **general_knowledge**: Factual questions where user context doesn't help. Examples: "what is machine learning", "how does TCP work". Set retrieval_query to null.
+- **personal**: Clearly about the user's life, preferences, or history. Examples: "what places did I visit recently", "remind me what I said about my project".
+- **ambiguous**: Answer could be improved by personal context (location, preferences, past mentions). Examples: "recommend a book", "good food places near me", "good activities in San Francisco". Choose ambiguous when the user might want answers tailored to them.
 
-**general_knowledge**: The query is factual or informational with no personalization value.
-- The user is asking about concepts, definitions, or facts
-- Knowing anything about the user would not improve the answer
-- Examples: "what is machine learning", "how does TCP work", "what year was the Eiffel Tower built"
+Bias toward retrieval when the user might benefit from their stored context.
 
-**personal**: The query is clearly about the user or would benefit significantly from personal context.
-- The query references the user's life, preferences, goals, habits, or experiences
-- Retrieving memories would meaningfully improve the response
-- Examples: "what should I focus on today", "how am I doing on my goals", "remind me what I said about my project"
+## Retrieval Query (critical)
 
-**ambiguous**: The query could benefit from personalization but is not explicitly personal.
-- A general answer exists but personal context could improve it
-- Retrieval will be attempted once but not retried if results are poor
-- Examples: "recommend me a book", "what are good activities in San Francisco", "what should I have for dinner"
+The retrieval_query searches **the user's memories only**. So you must ask: "What facts about the user would help answer this?" — not "What generic topic is the user asking about?"
 
-When in doubt between personal and ambiguous, classify as ambiguous.
-When in doubt between ambiguous and general_knowledge, classify as ambiguous.
-Always bias toward retrieval over skipping it.
+- **"Good food places near me"** → Retrieve where the user lives / location (e.g. "where user lives, city, neighborhood, location") and optionally food preferences — NOT "restaurants, dining options" (that would search the web, not memory).
+- **"Recommend a book"** → "user's reading preferences, favorite books, genres".
+- **"Good activities in San Francisco"** → "user's interests, hobbies, what they like to do" or "user in San Francisco, location" if you need to confirm they're there.
+- **"What should I have for dinner?"** → "user's diet, food preferences, cuisine likes".
 
-## Retrieval Query Generation
+Keep important user-side terms that might appear in memories (location, preferences, past events). On retry, try a different angle (e.g. "user location" vs "where user lives").
 
-If intent is personal or ambiguous, generate an optimized retrieval query that:
-- Captures the core information need behind the user's message
-- Is phrased to match how memories are likely stored - as natural language summaries of facts, preferences, and experiences
-- Expands on vague queries - "what should I work on" becomes "user's current projects priorities and goals"
-- Is broader than the original query when the original is too narrow
-- Incorporates retry feedback if provided
-
-If intent is general_knowledge, set retrieval_query to null.
+Examples (user message → intent, retrieval_query):
+- "what are some good food places near me?" → ambiguous, "where user lives, city, neighborhood, location, food preferences"
+- "what are some of the places I visited recently?" → personal, "recently visited places, travel, trips"
+- "remind me what I said about the launch" → personal, "launch, project, what user said"
+- "recommend me a book" → ambiguous, "user reading preferences, favorite books, genres"
+- "what is machine learning?" → general_knowledge, null
 
 ## Filters
 
-Extract filters only when the query explicitly implies a constraint:
-- Time: "last week", "recently", "in January" → created_at filter
-- Source: "something I added manually", "from my calendar" → source filter
-- Leave filters as empty dict if no clear constraint exists
+Only when the user clearly constrains by time or source: "last week", "recently", "from my calendar". Otherwise use {{}}.
 
 ## Retry Context
 
@@ -141,21 +169,20 @@ Extract filters only when the query explicitly implies a constraint:
 
 ## Output Format
 
-Return a valid JSON object:
+Valid JSON only, no markdown or explanation:
 {{
     "intent": "general_knowledge" | "personal" | "ambiguous",
-    "retrieval_query": "optimized query string" | null,
-    "filters": {{}} | {{"source": "...", "created_at": {{...}}}}
+    "retrieval_query": "short searchable string" | null,
+    "filters": {{}}
 }}
-
-Return only the JSON object. No preamble, no explanation, no markdown.
 """
 
 RETRY_CONTEXT_TEMPLATE = """
-This is retry attempt {retry_count} of 2. The previous retrieval attempt failed to find relevant memories.
+This is RETRY attempt {retry_count} of 2. The previous retrieval returned no (or poor) results.
 Previous retrieval query: {previous_query}
 Reason: {retry_feedback}
-Generate a meaningfully different retrieval query that addresses this feedback.
+
+You MUST output a *different* retrieval_query — do not repeat the previous query. Try: different keywords, a broader angle (e.g. "user location" vs "where they live"), or include the user's own words from their message. The goal is to give the search a second, meaningfully different attempt.
 """
 
 NO_RETRY_CONTEXT = "This is the first retrieval attempt."
@@ -444,7 +471,15 @@ def _build_query_analysis_prompt(state: GraphState) -> str:
     )
 
 
+def _normalize_query_for_comparison(q: str) -> str:
+    """Normalize so we can detect duplicate retrieval queries on retry."""
+    if not q:
+        return ""
+    return " ".join(str(q).lower().split())
+
+
 async def query_analysis(state: GraphState) -> dict:
+    _log_state("query_analysis", state)
     try:
         prompt = _build_query_analysis_prompt(state)
         response = await query_analysis_model.with_structured_output(
@@ -454,9 +489,17 @@ async def query_analysis(state: GraphState) -> dict:
             SystemMessage(content=prompt),
             HumanMessage(content=state["user_message"])
         ])
-        return response.model_dump()
+        out = response.model_dump()
+        # If we're on retry and the model returned the same query, force a different one (use user message)
+        retry_count = state.get("retry_count", 0)
+        if retry_count >= 1 and out.get("retrieval_query"):
+            prev = _normalize_query_for_comparison(state.get("retrieval_query") or "")
+            new_q = _normalize_query_for_comparison(out["retrieval_query"])
+            if prev and new_q == prev:
+                out["retrieval_query"] = (state.get("user_message") or "").strip() or out["retrieval_query"]
+        return out
     except Exception as e:
-        logger.warning("query analysis failed, defaulting to ambiguous intent")
+        print(f"[graph] query_analysis failed, defaulting to ambiguous intent: {e}", flush=True)
         return {
             "intent": "ambiguous",
             "retrieval_query": state["user_message"],
@@ -528,33 +571,55 @@ def _format_retrieval_results_for_prompt(results: List[dict], max_items: int = 5
 
 async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
     """
-    Retrieve memories from the database based on the retrieval query.
-    Returns raw results, scores, and a formatted string with temporal info for the prompt.
+    Retrieve memories: search with the analysis retrieval_query and, when different,
+    also with the raw user_message; merge and dedupe by memory id (keep max similarity).
     """
+    _log_state("retrieve_memories", state, config)
     try:
-        retrieval_query = (state.get("retrieval_query") or "").strip() or state.get("user_message", "")
-        dense_query_vector = embed_text(retrieval_query)
-        sparse_query_vector = sparse_embed_text(retrieval_query)
+        retrieval_query = (state.get("retrieval_query") or "").strip()
+        user_message = (state.get("user_message") or "").strip()
         user_id = config["configurable"]["user_id"]
         collection_name = config["configurable"]["collection_name"]
+
+        # Use retrieval_query if set, else fall back to user message
+        primary_query = retrieval_query or user_message
+        if not primary_query:
+            return {"retrieval_results": []}
+
         async with AsyncSessionLocal() as db:
+            primary_dense = embed_text(primary_query)
+            primary_sparse = sparse_embed_text(primary_query)
             results = await get_memory_by_query(
-                retrieval_query, dense_query_vector, sparse_query_vector,
+                primary_query, primary_dense, primary_sparse,
                 collection_name, user_id, db
             )
+
+            # If we have a distinct user message, also search with it and merge (better recall)
+            if user_message and user_message != primary_query:
+                user_dense = embed_text(user_message)
+                user_sparse = sparse_embed_text(user_message)
+                user_results = await get_memory_by_query(
+                    user_message, user_dense, user_sparse,
+                    collection_name, user_id, db
+                )
+                # Merge by memory id, keep max similarity
+                seen = {r["memory"].id: r for r in results}
+                for r in user_results:
+                    mid = r["memory"].id
+                    if mid not in seen or (r["similarity"] > seen[mid]["similarity"]):
+                        seen[mid] = r
+                results = sorted(seen.values(), key=lambda x: x["similarity"], reverse=True)
+
         if len(results) == 0:
-            return {
-                "retrieval_results": [],
-            }
+            return {"retrieval_results": []}
         return {"retrieval_results": results}
     except Exception as e:
-        logger.exception("retrieve_memories failed")
-        return {
-            "retrieval_results": [],
-        }
+        print(f"[graph] retrieve_memories failed: {e}", flush=True)
+        return {"retrieval_results": []}
 
 
 def retrieval_evaluation(state: GraphState) -> dict:
+    _log_state("retrieval_evaluation", state)
     results = state.get("retrieval_results", [])
     current_retry = state.get("retry_count", 0)
     if len(results) == 0:
@@ -570,7 +635,7 @@ def retrieval_evaluation(state: GraphState) -> dict:
                 Try rephrasing with different keywords or broader terms.""",
         }
     
-    return {"retry_count": state["retry_count"], "retry_feedback": None}
+    return {"retry_count": current_retry, "retry_feedback": None}
 
 def decide_retry(state: GraphState) -> Literal["retry", "respond"]:
     if (state.get("retry_count") or 0) >= 2:
@@ -586,6 +651,7 @@ def _build_chat_prompt(memory_context: str) -> str:
 
 
 async def respond(state: GraphState) -> dict:
+    _log_state("respond", state)
     try:
         memory_context = _format_retrieval_results_for_prompt(state.get("retrieval_results", []))
         prompt = _build_chat_prompt(memory_context)
@@ -606,7 +672,7 @@ async def create_reflection_node(user: UserModel):
             async with AsyncSessionLocal() as session:
                 await enqueue_memory_action(session, response, user.id, user.collection_name)
         except Exception as e:
-            logger.exception("Reflection/mutation failed")
+            print(f"[reflection] Reflection/mutation failed: {e}", flush=True)
             raise Exception(f"Error reflecting: {e}") from e
     return reflection
 
@@ -614,8 +680,10 @@ async def apply_memory_action(
     reflection: ReflectionOutput, db: AsyncSession, user_id: int, collection_name: str
 ) -> None:
     if reflection.action == "none" or not reflection.memory_content:
+        print(f"[reflection] apply_memory_action skipped (no-op) action={reflection.action} user_id={user_id} collection={collection_name}", flush=True)
         return
     try:
+        print(f"[reflection] apply_memory_action start action={reflection.action} user_id={user_id} collection={collection_name} target_ids={reflection.target_memory_ids}", flush=True)
         dense_embedding = embed_text(reflection.memory_content)
         sparse_embedding = sparse_embed_text(reflection.memory_content)
         memory_create = MemoryCreate(
@@ -630,6 +698,7 @@ async def apply_memory_action(
             user_id, collection_name, db, bypass_similarity_check=bypass_dedup
         )
         new_memory_id = result["memory"].id
+        print(f"[reflection] Created implicit memory id={new_memory_id} action={reflection.action} user_id={user_id} collection={collection_name}", flush=True)
 
         if reflection.action == "update":
             if reflection.target_memory_ids:
@@ -639,7 +708,7 @@ async def apply_memory_action(
             for target_id in reflection.target_memory_ids:
                 await update_memory(int(target_id), MemoryUpdate(superseded_by_id=new_memory_id), None, user_id, collection_name, db)
     except Exception as e:
-        logger.exception("apply_memory_action failed")
+        print(f"[reflection] apply_memory_action failed: {e}", flush=True)
         raise Exception(f"Error applying memory action: {e}") from e
 
 

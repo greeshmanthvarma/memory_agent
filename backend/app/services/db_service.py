@@ -191,6 +191,7 @@ async def db_enqueue_memory_mutation(user_id: int, collection_name: str, payload
     db.add(row)
     await db.commit()
     await db.refresh(row)
+    print(f"[mutation queue] enqueued job_id={row.id} user_id={user_id} collection={collection_name} status={row.status}", flush=True)
     return row.id
 
 
@@ -211,9 +212,11 @@ async def db_claim_next_mutation_job(db: AsyncSession):
         if not row:
             return None
         row.status = "processing"
-        row.started_at = datetime.now(timezone.utc)
+        # Use naive UTC to match TIMESTAMP WITHOUT TIME ZONE columns
+        row.started_at = datetime.utcnow()
         await db.commit()
         await db.refresh(row)
+        print(f"[mutation queue] claimed job_id={row.id} user_id={row.user_id} collection={row.collection_name}", flush=True)
         return row
     except Exception as e:
         await db.rollback()
@@ -227,6 +230,7 @@ async def db_mark_mutation_done(job_id: int, db: AsyncSession) -> None:
         .values(status="done", finished_at=func.now())
     )
     await db.commit()
+    print(f"[mutation queue] mark_done job_id={job_id}", flush=True)
 
 
 async def db_mark_mutation_failed(job_id: int, error_message: str, db: AsyncSession) -> None:
@@ -236,3 +240,4 @@ async def db_mark_mutation_failed(job_id: int, error_message: str, db: AsyncSess
         .values(status="failed", finished_at=func.now(), error_message=error_message)
     )
     await db.commit()
+    print(f"[mutation queue] mark_failed job_id={job_id} error={error_message}", flush=True)

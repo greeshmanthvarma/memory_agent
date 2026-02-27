@@ -92,7 +92,7 @@ async def create_memory(memory: MemoryCreate, dense_embedding: list[float], spar
 
 async def get_memory_by_query(query: str, dense_query_vector: list[float], sparse_query_vector: SparseEmbedding, collection_name: str, user_id: int, db: AsyncSession) -> List[dict]:
     try:
-        queried_memories = search_points(collection_name=collection_name, query=query, dense_query_vector=dense_query_vector, sparse_query_vector=sparse_query_vector, limit=10, user_id=user_id)
+        queried_memories = search_points(collection_name=collection_name, query=query, dense_query_vector=dense_query_vector, sparse_query_vector=sparse_query_vector, limit=15, user_id=user_id)
         memories = []
         for memory in queried_memories:
             try:

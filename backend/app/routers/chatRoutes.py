@@ -1,8 +1,14 @@
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest, ConversationUpdate, TitleFromMessageRequest
-from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service, get_title as get_title_service
+from app.services.llm_service import (
+    chat as chat_service,
+    summarize_conversation as summarize_conversation_service,
+    get_title as get_title_service,
+    create_reflection_node,
+)
 from app.middleware.auth import get_current_user
 from app.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +17,10 @@ from app.services.embedding_service import embed_text
 from typing import List
 from app.db_models import UserModel, MessageModel, ConversationModel
 from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service, db_delete_conversation as db_delete_conversation_service, db_update_conversation as db_update_conversation_service
+from app.state_models import ReflectionInput
+
+logger = logging.getLogger(__name__)
+
 
 chat_router = APIRouter(
     prefix="/api/chat",
@@ -51,8 +61,23 @@ async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user)
                     )
                     await db_create_message(assistant_response, db)
 
+                    try:
+                        reflection = await create_reflection_node(user)
+                        reflection_input = ReflectionInput(
+                            user_message=request.user_message,
+                            assistant_response=text,
+                            retrieval_results=[],
+                        )
+                        asyncio.create_task(reflection(reflection_input))
+                    except Exception:
+                        logger.exception(
+                            "Failed to schedule reflection for conversation_id=%s user_id=%s",
+                            request.conversation_id,
+                            user.id,
+                        )
+
         return StreamingResponse(
-            stream(),
+            stream(), 
             media_type="text/plain",
             headers={
                 "Cache-Control": "no-cache",
