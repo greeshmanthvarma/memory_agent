@@ -66,30 +66,25 @@ User -> Frontend (React SPA)
 
 ```mermaid
 graph LR
-    %% Chat graph (LangGraph-style)
-    subgraph ChatGraph
-        START((START)) --> QA[query_analysis]
+  subgraph ChatGraph
+    START((START)) --> QA[query_analysis]
+    QA --> RM[retrieve_memories]
+    QA --> RESP[respond]
+    RM --> RE[retrieval_evaluation]
+    RE --> QA
+    RE --> RESP
+    RESP --> END((END))
+  end
 
-        QA -->|should_retrieve = "retrieve"| RM[retrieve_memories]
-        QA -->|should_retrieve = "respond"| RESP[respond]
-
-        RM --> RE[retrieval_evaluation]
-        RE -->|decide_retry = "retry"| QA
-        RE -->|decide_retry = "respond"| RESP
-
-        RESP --> END((END))
-    end
-
-    %% Async reflection and mutation queue (triggered off chat)
-    subgraph ReflectionAndMutation["Async reflection + mutation queue"]
-        RESP -.schedule reflection.-> REFLECT[reflection_model\nwith_structured_output(ReflectionOutput)]
-        REFLECT --> ENQ[enqueue_memory_action]
-        ENQ --> QUEUE[(memory_mutation_queue)]
-        QUEUE --> WORKER[run_mutation_worker]
-        WORKER --> APPLY[apply_memory_action]
-        APPLY --> DB[(PostgreSQL memories)]
-        APPLY --> VEC[(Qdrant vectors)]
-    end
+  subgraph ReflectionAndMutation["Async reflection + mutation queue"]
+    RESP --> REFLECT[reflection_model with structured output]
+    REFLECT --> ENQ[enqueue_memory_action]
+    ENQ --> QUEUE[(memory_mutation_queue)]
+    QUEUE --> WORKER[run_mutation_worker]
+    WORKER --> APPLY[apply_memory_action]
+    APPLY --> DB[(PostgreSQL memories)]
+    APPLY --> VEC[(Qdrant vectors)]
+  end
 ```
 
 ### Three-layer architecture
