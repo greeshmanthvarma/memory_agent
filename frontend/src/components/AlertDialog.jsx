@@ -21,7 +21,7 @@ import {
             </AlertDialogMedia>
             <AlertDialogTitle>Delete chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this chat conversation and all associated memories.
+              This will permanently delete this chat conversation.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

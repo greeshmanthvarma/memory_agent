@@ -151,10 +151,37 @@ export default function ChatPage() {
         return null
       }
     }
+    async function updateConversationTitle(conversationId, message){
+      try{
+        const response = await fetch(`/api/chat/conversation/${conversationId}/title`,{
+          method:'POST',
+          credentials:'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            first_message: message
+          })
+        })
+        if(response.ok){
+          const data=await response.json()
+          refreshConversations()
+          return data.title
+        }
+        else{
+          throw new Error('Failed to update conversation title')
+        }
+      }
+      catch(error){
+        console.error('Error updating conversation title:', error)
+        setError('Failed to update conversation title')
+        return null
+      }
+    }
 
     async function handleSendMessage(){
       if(!inputValue.trim()) return
-      
+      const message = inputValue.trim()
       let currentConversationId = conversationId || (conversation?.id)
       
       if(!currentConversationId){
@@ -163,13 +190,13 @@ export default function ChatPage() {
           setError('Failed to create conversation')
           return
         }
+        updateConversationTitle(currentConversationId, message)
         loadedConversationIdRef.current = currentConversationId
         isSendingMessageRef.current = true
         navigate(`/app/chat/${currentConversationId}`, { replace: true })
         refreshConversations()
       }
 
-      const message = inputValue.trim()
       setInputValue('')
       
       const optimisticUserMessage = {content: message, role: 'user', id: `temp-${Date.now()}`}

@@ -1,8 +1,14 @@
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest, ConversationUpdate
-from app.services.llm_service import chat as chat_service, summarize_conversation as summarize_conversation_service
+from app.models import Message, MessageCreate, ConversationRead, ConversationCreate, SummarizeRequest, MemoryCreate, ChatRequest, ConversationUpdate, TitleFromMessageRequest
+from app.services.llm_service import (
+    chat as chat_service,
+    summarize_conversation as summarize_conversation_service,
+    get_title as get_title_service,
+    create_reflection_node,
+)
 from app.middleware.auth import get_current_user
 from app.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +17,10 @@ from app.services.embedding_service import embed_text
 from typing import List
 from app.db_models import UserModel, MessageModel, ConversationModel
 from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service, db_delete_conversation as db_delete_conversation_service, db_update_conversation as db_update_conversation_service
+from app.state_models import ReflectionInput
+
+logger = logging.getLogger(__name__)
+
 
 chat_router = APIRouter(
     prefix="/api/chat",
@@ -20,39 +30,24 @@ chat_router = APIRouter(
 @chat_router.post("/")
 async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
-        await db_get_conversation(request.conversation_id, user.id, db)
-        existing_messages = await db_get_conversation_messages(request.conversation_id, db)
+        conversation = await db_get_conversation(request.conversation_id, user.id, db)
+        thread_id = getattr(conversation, "thread_id", None) or f"{user.id}_{request.conversation_id}"
 
         user_query = MessageModel(
             content=request.user_message,
-            role = "user",
-            conversation_id=request.conversation_id
+            role="user",
+            conversation_id=request.conversation_id,
         )
+        await db_create_message(user_query, db)
 
-        user_query_response = await db_create_message(user_query, db)
-
-        messages_list= [
-            Message(
-                id= m.id,
-                content=m.content,
-                role=m.role,
-                created_at=m.created_at,
-                updated_at=m.updated_at
-            ) for m in existing_messages
-        ]+[
-            Message(
-                id=user_query_response.id,
-                content=user_query_response.content,
-                role=user_query_response.role,
-                created_at=user_query_response.created_at,
-                updated_at=user_query_response.updated_at
-            )
-        ]
-        
         async def stream():
             full = []
             try:
-                async for chunk in chat_service(user=user, db=db, user_message=request.user_message, messages=messages_list):
+                async for chunk in chat_service(
+                    user=user,
+                    user_message=request.user_message,
+                    thread_id=thread_id,
+                ):
                     full.append(chunk)
                     yield chunk
                     await asyncio.sleep(0)
@@ -66,8 +61,23 @@ async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user)
                     )
                     await db_create_message(assistant_response, db)
 
+                    try:
+                        reflection = await create_reflection_node(user)
+                        reflection_input = ReflectionInput(
+                            user_message=request.user_message,
+                            assistant_response=text,
+                            retrieval_results=[],
+                        )
+                        asyncio.create_task(reflection(reflection_input))
+                    except Exception:
+                        logger.exception(
+                            "Failed to schedule reflection for conversation_id=%s user_id=%s",
+                            request.conversation_id,
+                            user.id,
+                        )
+
         return StreamingResponse(
-            stream(),
+            stream(), 
             media_type="text/plain",
             headers={
                 "Cache-Control": "no-cache",
@@ -91,11 +101,16 @@ async def create_conversation(user: UserModel = Depends(get_current_user), db: A
             user_id=user.id
         )
         conversation_response = await db_create_conversation(conversation_model, db)
+        thread_id = f"{user.id}_{conversation_response.id}"
+        conversation_response.thread_id = thread_id
+        await db.commit()
+        await db.refresh(conversation_response)
         conversation = ConversationCreate(
             id=conversation_response.id,
             title=conversation_response.title or None,
             messages=[],
             user_id=conversation_response.user_id,
+            thread_id=conversation_response.thread_id,
             created_at=conversation_response.created_at,
             updated_at=conversation_response.updated_at
         )
@@ -204,6 +219,7 @@ async def get_all_conversations(user: UserModel = Depends(get_current_user), db:
                 memory_id=c.memory_id or None,
                 messages=[],
                 user_id=c.user_id,
+                thread_id=c.thread_id or None,
                 created_at=c.created_at,
                 updated_at=c.updated_at
             ) for c in conversations
@@ -222,6 +238,7 @@ async def get_conversation(conversation_id: int, user: UserModel = Depends(get_c
             memory_id=conversation.memory_id or None,
             messages=[],
             user_id=conversation.user_id,
+            thread_id=conversation.thread_id or None,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at
         )
@@ -248,6 +265,20 @@ async def update_conversation(conversation_id: int, update: ConversationUpdate, 
             raise HTTPException(status_code=400, detail="Title is required")
         await db_update_conversation_service(conversation_id, update.title, user.id, db)
         return JSONResponse({"message": "Conversation title updated successfully"})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@chat_router.post("/conversation/{conversation_id}/title")
+async def update_conversation_title(conversation_id: int, body: TitleFromMessageRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        await db_get_conversation(conversation_id, user.id, db) #ensures the conversation exists and is owned by the user, returns ValueError if not found
+        title = get_title_service(body.first_message)
+        await db_update_conversation_service(conversation_id, title, user.id, db)
+        return JSONResponse({"title": title})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:

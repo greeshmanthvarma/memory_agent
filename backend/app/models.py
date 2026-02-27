@@ -14,6 +14,7 @@ class Memory(BaseModel):
     user_id: int
     importance_score: float = 0.0
     tags: List[str] = Field(default_factory=list)
+    memory_category: Optional[Literal["fact", "preference", "event"]] = None
     related_memories: List[int] = Field(default_factory=list)
     last_accessed_at: Optional[datetime] = None
     last_updated_at: Optional[datetime] = None
@@ -33,11 +34,12 @@ class MemoryCreate(BaseModel):
 
 class MemoryUpdate(BaseModel):
     content: Optional[str] = None
-    embedding_id: Optional[uuid.UUID] = None
-    memory_type: Optional[Literal["explicit", "implicit", "photo", "calender"]] = None
+    superseded_by_id: Optional[int] = None
+    memory_category: Optional[Literal["fact", "preference", "event"]] = None
+    summary_long: Optional[str] = None
+    conversation_id: Optional[int] = None
     importance_score: Optional[float] = None
     tags: Optional[List[str]] = None
-
 
 class Message(BaseModel):
     id: int
@@ -57,6 +59,7 @@ class ConversationRead(BaseModel):
     memory_id: Optional[int] = None
     messages: List[Message] = Field(default_factory=list)
     user_id: int
+    thread_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -66,6 +69,7 @@ class ConversationCreate(BaseModel):
     title: Optional[str] = None
     messages: List[Message] = Field(default_factory=list)
     user_id: int
+    thread_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -95,3 +99,8 @@ class UpdateProfileRequest(BaseModel):
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
+
+
+class TitleFromMessageRequest(BaseModel):
+    first_message: str
+
