@@ -9,7 +9,6 @@ class GraphState(TypedDict, total=False):
     messages: Annotated[list, add_messages]
     run_id: str
     thread_id: str
-    user_id: int
     user_message : str
     # Query analysis
     intent: Literal["general_knowledge","personal", "ambiguous"]
@@ -35,8 +34,12 @@ class ReflectionOutput(BaseModel):
     target_memory_ids: list[str] = []
     memory_category: Literal["fact", "preference", "event"] | None = None
     tags: list[str] = []
+    conversation_id: int | None = None
 
 class ReflectionInput(BaseModel):
+    user_id: int
+    collection_name: str
     user_message: str
     assistant_response: str
     retrieval_results: list
+    conversation_id: int

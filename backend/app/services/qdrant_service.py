@@ -176,9 +176,8 @@ def search_points(collection_name: str, query: str, dense_query_vector: list[flo
         reranked_results = list (reranker.rerank(query, search_result_contents))
 
         ranking= [
-            (index, score, search_result_contents[index]) 
+            (index, score)
             for index, score in enumerate(reranked_results)
-            if score > 0.4
         ]
         ranking.sort(key=lambda x: x[1], reverse=True)
         ranking= ranking[:limit]
