@@ -290,3 +290,4 @@ async def update_conversation_title(conversation_id: int, body: TitleFromMessage
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

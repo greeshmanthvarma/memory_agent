@@ -2,14 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from app.database import get_db
 from app.models import MemoryCreate, Memory, MemoryUpdate
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.memory_service import create_memory as create_memory_service
 from app.services.embedding_service import embed_text, sparse_embed_text
 from app.services.db_service import db_get_all_memories as db_get_all_memories_service, db_get_memory_by_id as db_get_memory_by_id_service
 from app.services.memory_service import db_memory_to_memory, get_memory_by_query as get_memory_by_query_service, update_memory as update_memory_service
 from typing import List
-from app.db_models import UserModel
+from app.db_models import UserModel, MemoryMutationQueueModel
 from app.middleware.auth import get_current_user
+from app.models import MemoryMutationQueue
+from app.state_models import ReflectionOutput
 
 memory_router = APIRouter(
     prefix="/api/memory",
@@ -101,3 +104,12 @@ async def update_memory(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@memory_router.get("/mutation-queue")
+async def get_mutation_queue( user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        queue = await db.execute(select(MemoryMutationQueueModel).where(MemoryMutationQueueModel.user_id == user.id, MemoryMutationQueueModel.collection_name == user.collection_name).order_by(MemoryMutationQueueModel.finished_at.desc()))
+        queue = queue.scalars().first()
+        return MemoryMutationQueue(id=queue.id, payload=ReflectionOutput(**queue.payload), status=queue.status, finished_at=queue.finished_at)  
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 

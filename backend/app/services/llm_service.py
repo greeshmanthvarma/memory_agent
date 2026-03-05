@@ -628,17 +628,19 @@ async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
         return {"retrieval_results": []}
 
 
+MIN_RERANK_SCORE = -4.0
+
+
 def retrieval_evaluation(state: GraphState) -> dict:
     _log_state("retrieval_evaluation", state)
     results = state.get("retrieval_results", [])
     current_retry = state.get("retry_count", 0)
-    MIN_RERANK_SCORE = -4.0
     if len(results) == 0:
         return {
             "retry_count": current_retry + 1,
             "retry_feedback": "No memories were found. Try using broader or more general terms.",
         }
-    elif results[0].get("similarity") < MIN_RERANK_SCORE:
+    elif (results[0].get("similarity") or 0) < MIN_RERANK_SCORE:
         best = results[0].get("similarity") or 0.0
         return {
             "retry_count": current_retry + 1,
@@ -664,7 +666,12 @@ def _build_chat_prompt(memory_context: str) -> str:
 async def respond(state: GraphState) -> dict:
     _log_state("respond", state)
     try:
-        memory_context = _format_retrieval_results_for_prompt(state.get("retrieval_results", []))
+        results = state.get("retrieval_results", [])
+        best_score = results[0].get("similarity") if results else None
+        if best_score is not None and best_score >= MIN_RERANK_SCORE:
+            memory_context = _format_retrieval_results_for_prompt(results)
+        else:
+            memory_context = _format_retrieval_results_for_prompt([])
         prompt = _build_chat_prompt(memory_context)
         messages = [SystemMessage(content=prompt)] + state.get("messages", [])
         response = await chat_model.ainvoke(messages)
