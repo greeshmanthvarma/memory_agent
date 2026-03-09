@@ -31,7 +31,7 @@ class ReflectionOutput(BaseModel):
     action: Literal["none", "create", "update", "merge"]
     reasoning: str
     memory_content: str | None = None
-    target_memory_ids: list[str] = []
+    target_memory_ids: list[int] = []
     memory_category: Literal["fact", "preference", "event"] | None = None
     tags: list[str] = []
     conversation_id: int | None = None

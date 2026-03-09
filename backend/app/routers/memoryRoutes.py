@@ -75,6 +75,36 @@ async def get_all_memories(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@memory_router.get("/mutation-queue")
+async def get_mutation_queue(
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        result = await db.execute(
+            select(MemoryMutationQueueModel)
+            .where(
+                MemoryMutationQueueModel.user_id == user.id,
+                MemoryMutationQueueModel.collection_name == user.collection_name,
+            )
+            .order_by(MemoryMutationQueueModel.finished_at.desc())
+        )
+        row = result.scalars().first()
+        if row is None:
+            return None
+
+        return MemoryMutationQueue(
+            id=row.id,
+            payload=ReflectionOutput(**row.payload),
+            status=row.status,
+            created_at=row.created_at,
+            finished_at=row.finished_at,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @memory_router.get("/{memory_id}")
 async def get_memory_by_id(
     memory_id: int,
@@ -104,12 +134,3 @@ async def update_memory(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@memory_router.get("/mutation-queue")
-async def get_mutation_queue( user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    try:
-        queue = await db.execute(select(MemoryMutationQueueModel).where(MemoryMutationQueueModel.user_id == user.id, MemoryMutationQueueModel.collection_name == user.collection_name).order_by(MemoryMutationQueueModel.finished_at.desc()))
-        queue = queue.scalars().first()
-        return MemoryMutationQueue(id=queue.id, payload=ReflectionOutput(**queue.payload), status=queue.status, finished_at=queue.finished_at)  
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 

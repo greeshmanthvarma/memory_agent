@@ -109,4 +109,5 @@ class MemoryMutationQueue(BaseModel):
     id: int
     payload: ReflectionOutput
     status: Literal["pending", "processing", "done", "failed"]
+    created_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None

@@ -1,12 +1,26 @@
 import { GlassDialog, GlassDialogContent, GlassDialogHeader, GlassDialogTitle, GlassDialogDescription } from "@/components/ui/glass-dialog"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function MemoryDialog({ open, onOpenChange, memory }) {
     const navigate = useNavigate()
-    
+    const [isEditing, setIsEditing] = useState(false)
+    const [summaryLong, setSummaryLong] = useState(memory?.summary_long ?? '')
+    const [memoryContent, setMemoryContent] = useState(memory?.content ?? '')
+
+    useEffect(() => {
+        if (memory) {
+            setSummaryLong(memory.summary_long ?? '')
+            setMemoryContent(memory.content ?? '')
+        }
+    }, [memory, open])
+
     if (!memory) return null
-    
+
     const formatDate = (dateString) => {
         if (!dateString) return null
         const date = new Date(dateString)
@@ -18,12 +32,37 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
             minute: '2-digit'
         })
     }
-   
+    async function handleSaveChanges(){
+        try{
+            const response = await fetch(`/api/memory/${memory.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    summary_long: summaryLong,
+                    content: memoryContent
+                }),
+                credentials: 'include'
+            })
+            if (!response.ok){
+                throw new Error('Failed to save changes')
+            }
+            const data = await response.json()
+            console.log(data)
+            toast.success('Changes saved successfully')
+            setIsEditing(false)
+        } catch (error) {
+            toast.error('Failed to save changes')
+        }
+    }
     return (
         <GlassDialog open={open} onOpenChange={onOpenChange}>
             <GlassDialogContent className="max-w-2xl">
                 <GlassDialogHeader>
-                    <GlassDialogTitle className="text-lg">{memory.content}</GlassDialogTitle>
+                    <GlassDialogTitle className="text-lg">
+                        {isEditing ? <Input value={memoryContent} onChange={(e)=>setMemoryContent(e.target.value)} /> : memory.content}
+                    </GlassDialogTitle>
                     <GlassDialogDescription className="sr-only">
                         Memory details including summary, type, tags, and creation date
                     </GlassDialogDescription>
@@ -32,7 +71,11 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
                     {memory.summary_long && (
                         <div className="border-b">
                             <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Summary</h4>
-                            <p className="text-sm leading-relaxed pb-8">{memory.summary_long}</p>
+                            {isEditing ? (
+                                <Textarea className="w-full" value={memory.summary_long} onChange={(e)=>setSummaryLong(e.target.value)} />
+                            ) : (
+                                <p className="text-sm leading-relaxed pb-8">{memory.summary_long}</p>
+                            )}
                         </div>
                     )}
                     
@@ -83,7 +126,15 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
                             >
                                 View Conversation
                             </Button>
-                        ))} 
+                        ))}
+                        <div className="flex items-center gap-2">
+                            {!isEditing ? (
+                                <Button className="cursor-pointer" onClick={()=>setIsEditing(true)}>Edit</Button> 
+                            ) : (
+                                <Button className="cursor-pointer" onClick={()=>handleSaveChanges()}>Save Changes</Button>
+                            )}
+                            <Button variant="destructive" className="cursor-pointer" onClick={()=>onDelete(memory)}>Delete</Button>
+                        </div>
                     </div>
                 </div>
             </GlassDialogContent>

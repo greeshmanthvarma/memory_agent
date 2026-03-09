@@ -9,6 +9,10 @@ import ReactMarkdown from "react-markdown"
 import { Button } from '@/components/ui/button'
 import { useSidebar, SidebarTrigger } from '@/components/ui/sidebar'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import ViewMemoryChangesDialog from "@/components/ViewMemoryChangesDialog"
+
+const POLL_INTERVAL_MS = 2000
+const POLL_TIMEOUT_MS = 20000
 
 export default function ChatPage() {
   const { theme, toggleTheme } = useTheme()
@@ -29,6 +33,9 @@ export default function ChatPage() {
   const [isSummarizing,setIsSummarizing]=useState(false)
   const { refreshConversations } = useSidebar()
   const [loadingMessages, setLoadingMessages]=useState(false)
+  const [memoryUpdate,setMemoryUpdate]=useState(null)
+  const [viewChangesDialogOpen, setViewChangesDialogOpen] = useState(false)
+  const mutationPollIntervalRef = useRef(null)
 
   useEffect(()=>{
     async function initializeConversation(){
@@ -89,6 +96,14 @@ export default function ChatPage() {
       }
     }
   },[messages])
+// This clears the interval when the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (mutationPollIntervalRef.current) {
+        clearInterval(mutationPollIntervalRef.current)
+      }
+    }
+  }, [])
   
   async function fetchConversation(conversationId){
       try{
@@ -178,6 +193,87 @@ export default function ChatPage() {
         return null
       }
     }
+    async function pollForMemoryUpdates(){
+      try{
+        const response = await fetch('/api/memory/mutation-queue',{
+          credentials:'include'
+        })
+        if(response.ok){
+          const data=await response.json()
+          return data
+        }
+        else{
+          throw new Error('Failed to poll for memory updates')
+        }
+      }
+      catch(error){
+        console.error('Error polling for memory updates:', error)
+        toast.error('Failed to poll for memory updates')
+        return null
+      }
+    }
+
+    function pollForMemoryUpdateUntilTerminal(sentAt){
+      let elapsedMs = 0
+      let isPolling = false
+
+      if (mutationPollIntervalRef.current) {
+        clearInterval(mutationPollIntervalRef.current)
+      }
+
+      const intervalId = setInterval(async () => {
+        if (isPolling) return
+        isPolling = true
+
+        try{
+          const memoryUpdate = await pollForMemoryUpdates()
+          elapsedMs += POLL_INTERVAL_MS
+
+          const jobCreatedMs = memoryUpdate?.created_at ? new Date(memoryUpdate.created_at).getTime() : NaN
+          if (!memoryUpdate || Number.isNaN(jobCreatedMs) || jobCreatedMs < sentAt) {
+            if (elapsedMs > POLL_TIMEOUT_MS) {
+              clearInterval(intervalId)
+              mutationPollIntervalRef.current = null
+            }
+            return
+          }
+
+          const status = memoryUpdate?.status
+          const isTerminal = status === 'done' || status === 'failed'
+          const isTimedOut = elapsedMs > POLL_TIMEOUT_MS
+
+          if (isTerminal || isTimedOut) {
+            if (status === 'done') {
+              toast(
+                <div className="flex flex-col gap-2">
+                  <p>Memory updated successfully</p>
+                  <button
+                    className="underline"
+                    onClick={() => setViewChangesDialogOpen(true)}
+                  >
+                    View Changes
+                  </button>
+                </div>
+              )
+              setMemoryUpdate(memoryUpdate)
+            } else if (status === 'failed') {
+              toast.error('Failed to apply memory update')
+            }
+            clearInterval(intervalId)
+            mutationPollIntervalRef.current = null
+          }
+        } catch (err) {
+          console.error('Error polling memory updates interval:', err)
+          toast.error('Error while checking memory updates')
+          clearInterval(intervalId)
+          mutationPollIntervalRef.current = null
+        } finally {
+          isPolling = false
+        }
+      }, POLL_INTERVAL_MS)
+
+      mutationPollIntervalRef.current = intervalId
+    }
 
     async function handleSendMessage(){
       if(!inputValue.trim()) return
@@ -202,6 +298,7 @@ export default function ChatPage() {
       const optimisticUserMessage = {content: message, role: 'user', id: `temp-${Date.now()}`}
       setMessages(prev => [...prev, optimisticUserMessage])
       setAwaitingResponse(true)
+      let sentAt = Date.now()
       try{
         const response = await fetch('/api/chat', {
           method:'POST',
@@ -240,6 +337,8 @@ export default function ChatPage() {
             )
           }
         }
+
+        pollForMemoryUpdateUntilTerminal(sentAt)
       }
       catch(error){
         console.error('Error sending message:', error)
@@ -415,6 +514,7 @@ export default function ChatPage() {
           </InputGroup>
         </div>
       </div>
+      <ViewMemoryChangesDialog open={viewChangesDialogOpen} onOpenChange={setViewChangesDialogOpen} memoryUpdate={memoryUpdate} />
     </div>
   )
 }

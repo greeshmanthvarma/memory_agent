@@ -1,7 +1,13 @@
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_load_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_load_env_path)
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 from pydantic import BaseModel
 from openai import OpenAI
@@ -15,8 +21,6 @@ from sqlalchemy import text
 import logging
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 app = FastAPI(
     title="Memory Agent API",
