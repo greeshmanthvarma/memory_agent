@@ -33,36 +33,35 @@ export default function MemorySpacePage() {
   }, [user, navigate])
 
   useEffect(()=>{
-    async function fetchMemories(){
-      if(!user){
-        setIsLoading(false)
-        return
-      }
-      setIsLoading(true)
-      try{
-        const response =await fetch('/api/memory',{
-          credentials:'include',
-          headers:{
-            'Content-Type': 'application/json'
-          }
-        })
-        if(response.ok){
-          const data=await response.json()
-          console.log(data)
-          setMemories(data || [])
-        }else{
-          const errorData = await response.json().catch(() => ({}))
-          toast.error(errorData.detail || 'Failed to fetch memories')
-        }
-      }catch(error){
-        toast.error('Failed to fetch memories: ' + error.message)
-      }finally{
-        setIsLoading(false)
-      }
-    }
     fetchMemories()
   },[user])
-
+  async function fetchMemories(){
+    if(!user){
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
+    try{
+      const response =await fetch('/api/memory',{
+        credentials:'include',
+        headers:{
+          'Content-Type': 'application/json'
+        }
+      })
+      if(response.ok){
+        const data=await response.json()
+        console.log(data)
+        setMemories(data || [])
+      }else{
+        const errorData = await response.json().catch(() => ({}))
+        toast.error(errorData.detail || 'Failed to fetch memories')
+      }
+    }catch(error){
+      toast.error('Failed to fetch memories: ' + error.message)
+    }finally{
+      setIsLoading(false)
+    }
+  }
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="flex justify-between items-center mb-4">
@@ -113,6 +112,7 @@ export default function MemorySpacePage() {
         open={isDialogOpen} 
         onOpenChange={setIsDialogOpen} 
         memory={selectedMemory}
+        fetchMemories={fetchMemories}
       />
     </div>
   )

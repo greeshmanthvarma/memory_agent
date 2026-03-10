@@ -380,7 +380,7 @@ export default function AppSidebar() {
       <SidebarRail />
       <LogMemoryDialog open={logMemoryOpen} onOpenChange={setLogMemoryOpen} />
       <EditProfileDialog open={editProfileOpen} onOpenChange={setEditProfileOpen} />
-      <AlertDialogDestructive open={deleteConversationOpen} onOpenChange={setDeleteConversationOpen} onDelete={handleDeleteConversation} conversationId={deleteConversationId} isDeleting={isDeleting} />
+      <AlertDialogDestructive open={deleteConversationOpen} onOpenChange={setDeleteConversationOpen} onDelete={handleDeleteConversation} itemId={deleteConversationId} isDeleting={isDeleting} itemType="conversation" />
     </Sidebar>
   )
 }

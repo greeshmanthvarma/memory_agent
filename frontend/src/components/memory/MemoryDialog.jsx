@@ -5,15 +5,17 @@ import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { AlertDialogDestructive } from "@/components/AlertDialog"
 
-export default function MemoryDialog({ open, onOpenChange, memory }) {
+export default function MemoryDialog({ open, onOpenChange, memory, fetchMemories }) {
     const navigate = useNavigate()
     const [isEditing, setIsEditing] = useState(false)
     const [summaryLong, setSummaryLong] = useState(memory?.summary_long ?? '')
     const [memoryContent, setMemoryContent] = useState(memory?.content ?? '')
-
+    const [deleteMemoryOpen, setDeleteMemoryOpen] = useState(false)
     useEffect(() => {
-        if (memory) {
+        setIsEditing(false)
+        if (memory) {   
             setSummaryLong(memory.summary_long ?? '')
             setMemoryContent(memory.content ?? '')
         }
@@ -52,10 +54,29 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
             console.log(data)
             toast.success('Changes saved successfully')
             setIsEditing(false)
+            fetchMemories()
+            onOpenChange(false)
         } catch (error) {
             toast.error('Failed to save changes')
         }
     }
+    async function handleDelete(memoryId){
+        try{
+            const response = await fetch(`/api/memory/${memoryId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            })
+            if (!response.ok){
+                throw new Error('Failed to delete memory')
+            }
+            toast.success('Memory deleted successfully')
+            fetchMemories()
+            onOpenChange(false)
+        } catch (error) {
+            toast.error('Failed to delete memory')
+        }
+    }    
+
     return (
         <GlassDialog open={open} onOpenChange={onOpenChange}>
             <GlassDialogContent className="max-w-2xl">
@@ -72,7 +93,7 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
                         <div className="border-b">
                             <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Summary</h4>
                             {isEditing ? (
-                                <Textarea className="w-full" value={memory.summary_long} onChange={(e)=>setSummaryLong(e.target.value)} />
+                                <Textarea className="w-full" value={summaryLong} onChange={(e)=>setSummaryLong(e.target.value)} />
                             ) : (
                                 <p className="text-sm leading-relaxed pb-8">{memory.summary_long}</p>
                             )}
@@ -133,11 +154,13 @@ export default function MemoryDialog({ open, onOpenChange, memory }) {
                             ) : (
                                 <Button className="cursor-pointer" onClick={()=>handleSaveChanges()}>Save Changes</Button>
                             )}
-                            <Button variant="destructive" className="cursor-pointer" onClick={()=>onDelete(memory)}>Delete</Button>
+                            <Button variant="destructive" className="cursor-pointer" onClick={()=>setDeleteMemoryOpen(true)}>Delete</Button>
                         </div>
                     </div>
                 </div>
             </GlassDialogContent>
+            <AlertDialogDestructive open={deleteMemoryOpen} onOpenChange={setDeleteMemoryOpen} onDelete={handleDelete} itemId={memory.id} isDeleting={false} itemType="memory" />
         </GlassDialog>
+        
     )
 }

@@ -11,7 +11,7 @@ import {
   } from "@/components/ui/alert-dialog"
   import { Trash2Icon, Loader2 } from "lucide-react"
   
-  export function AlertDialogDestructive({ onDelete, conversationId, open, onOpenChange, isDeleting }) {
+  export function AlertDialogDestructive({ onDelete, itemId, open, onOpenChange, isDeleting, itemType }) {
     return (
       <AlertDialog open={open} onOpenChange={onOpenChange}>
         <AlertDialogContent size="sm">
@@ -19,9 +19,9 @@ import {
             <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
               <Trash2Icon />
             </AlertDialogMedia>
-            <AlertDialogTitle>Delete chat?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {itemType}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this chat conversation.
+              This will permanently delete this {itemType}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -35,7 +35,7 @@ import {
             </AlertDialogCancel>
             <AlertDialogAction 
               variant="destructive" 
-              onClick={() => onDelete(conversationId)} 
+              onClick={() => onDelete(itemId)} 
               className="cursor-pointer" 
               disabled={isDeleting}
             >

@@ -1,6 +1,6 @@
 from app.models import MemoryCreate
-from app.services.qdrant_service import add_point, search_points, get_point_vectors
-from app.services.db_service import db_create_memory, db_get_memory_by_embedding_id, db_get_memory_by_content, db_get_memory_by_id, db_update_memory
+from app.services.qdrant_service import add_point, search_points, get_point_vectors, delete_points
+from app.services.db_service import db_create_memory, db_get_memory_by_embedding_id, db_get_memory_by_content, db_get_memory_by_id, db_update_memory, db_delete_memory
 from app.models import Memory, MemoryUpdate
 from app.db_models import MemoryModel, MemoryType
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,3 +136,13 @@ async def update_memory(memory_id: int, memory: MemoryUpdate, dense_embedding: O
         raise
     except Exception as e:
         raise Exception(f"Error updating memory: {e}")
+
+async def delete_memory(memory_id: int, user_id: int, collection_name: str, db: AsyncSession):
+    try:
+        deleted = await db_delete_memory(memory_id, user_id, db)
+        delete_points(collection_name=collection_name, ids=[deleted.embedding_id])
+        return deleted
+    except ValueError:
+        raise
+    except Exception as e:
+        raise Exception(f"Error deleting memory: {e}")
