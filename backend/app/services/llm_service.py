@@ -13,7 +13,6 @@ from app.db_models import UserModel
 from app.models import MemoryCreate, MemoryUpdate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import StateGraph, START, END
 from app.state_models import GraphState, QueryAnalysisOutput, ReflectionOutput, ReflectionInput
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -24,6 +23,7 @@ from app.services.db_service import (
     db_claim_next_mutation_job,
     db_mark_mutation_done,
     db_mark_mutation_failed,
+    db_get_memory_by_id,
 )
 from app.database import AsyncSessionLocal
 load_dotenv()
@@ -64,7 +64,13 @@ async def run_mutation_worker() -> None:
                 async with AsyncSessionLocal() as session:
                     try:
                         print(f"[mutation worker] Applying action job_id={job.id} user_id={job.user_id} collection={job.collection_name} action={output.action}", flush=True)
-                        await apply_memory_action(output, session, job.user_id, job.collection_name)
+                        await apply_memory_action(
+                            output,
+                            session,
+                            job.user_id,
+                            job.collection_name,
+                            getattr(output, "conversation_id", None),
+                        )
                         await session.commit()
                         print(f"[mutation worker] Done job_id={job.id} user_id={job.user_id} collection={job.collection_name}", flush=True)
                     except Exception:
@@ -547,21 +553,25 @@ def _format_retrieval_results_for_prompt(results: List[dict], max_items: int = 5
     """Format retrieval results with temporal info for injection into the response prompt."""
     if not results:
         return ""
+    def _field(obj, key, default=None):
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
     lines = []
     for item in results[:max_items]:
         memory = item.get("memory")
         similarity = item.get("similarity", 0)
         if not memory:
             continue
-        content = getattr(memory, "content", memory.get("content", ""))
-        memory_type = getattr(memory, "memory_type", memory.get("memory_type", ""))
-        tags = getattr(memory, "tags", memory.get("tags")) or []
+        content = _field(memory, "content", "")
+        memory_type = _field(memory, "memory_type", "")
+        tags = _field(memory, "tags", []) or []
         tags_str = ", ".join(tags) if tags else "No tags"
-        created_at = getattr(memory, "created_at", memory.get("created_at"))
+        created_at = _field(memory, "created_at")
         time_str = _relative_time_str(created_at) if created_at else "unknown"
         created_iso = created_at.strftime("%Y-%m-%d %H:%M:%S") if isinstance(created_at, datetime) else str(created_at or "")
         lines.append(
-            f"Memory ID {getattr(memory, 'id', memory.get('id', ''))}: {content}\n"
+            f"Memory ID {_field(memory, 'id', '')}: {content}\n"
             f"  Memory Type: {memory_type}, Similarity: {similarity:.2f}\n"
             f"  Tags: {tags_str}, Created: {time_str} ({created_iso})\n"
         )
@@ -618,6 +628,9 @@ async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
         return {"retrieval_results": []}
 
 
+MIN_RERANK_SCORE = -4.0
+
+
 def retrieval_evaluation(state: GraphState) -> dict:
     _log_state("retrieval_evaluation", state)
     results = state.get("retrieval_results", [])
@@ -627,11 +640,11 @@ def retrieval_evaluation(state: GraphState) -> dict:
             "retry_count": current_retry + 1,
             "retry_feedback": "No memories were found. Try using broader or more general terms.",
         }
-    elif results[0].get("similarity") < 0.4:
+    elif (results[0].get("similarity") or 0) < MIN_RERANK_SCORE:
         best = results[0].get("similarity") or 0.0
         return {
             "retry_count": current_retry + 1,
-            "retry_feedback": f"""Best match scored {best:.2f} out of 1.0 which is below the relevance threshold.
+            "retry_feedback": f"""Best reranker score was {best:.2f}, below the relevance threshold ({MIN_RERANK_SCORE:.2f}).
                 Try rephrasing with different keywords or broader terms.""",
         }
     
@@ -653,7 +666,12 @@ def _build_chat_prompt(memory_context: str) -> str:
 async def respond(state: GraphState) -> dict:
     _log_state("respond", state)
     try:
-        memory_context = _format_retrieval_results_for_prompt(state.get("retrieval_results", []))
+        results = state.get("retrieval_results", [])
+        best_score = results[0].get("similarity") if results else None
+        if best_score is not None and best_score >= MIN_RERANK_SCORE:
+            memory_context = _format_retrieval_results_for_prompt(results)
+        else:
+            memory_context = _format_retrieval_results_for_prompt([])
         prompt = _build_chat_prompt(memory_context)
         messages = [SystemMessage(content=prompt)] + state.get("messages", [])
         response = await chat_model.ainvoke(messages)
@@ -661,29 +679,79 @@ async def respond(state: GraphState) -> dict:
     except Exception as e:
         raise Exception(f"Error responding: {e}")
 
-async def create_reflection_node(user: UserModel):
-    async def reflection(input: ReflectionInput):
-        try:
-            prompt = REFLECTION_SYSTEM_PROMPT
-            memory_context = _format_retrieval_results_for_prompt(input.retrieval_results)
-            user_message = REFLECTION_USER_TEMPLATE.format(user_message=input.user_message, assistant_response=input.assistant_response, memory_context=memory_context)
-            messages = [SystemMessage(content=prompt)] + [HumanMessage(content=user_message)]
-            response = await reflection_model.with_structured_output(ReflectionOutput, method="function_calling").ainvoke(messages)
-            async with AsyncSessionLocal() as session:
-                await enqueue_memory_action(session, response, user.id, user.collection_name)
-        except Exception as e:
-            print(f"[reflection] Reflection/mutation failed: {e}", flush=True)
-            raise Exception(f"Error reflecting: {e}") from e
-    return reflection
+
+async def reflection(input: ReflectionInput):
+    try:
+
+        prompt = REFLECTION_SYSTEM_PROMPT
+        memory_context = _format_retrieval_results_for_prompt(input.retrieval_results)
+        user_message = REFLECTION_USER_TEMPLATE.format(
+            user_message=input.user_message,
+            assistant_response=input.assistant_response,
+            memory_context=memory_context,
+        )
+        messages = [SystemMessage(content=prompt)] + [HumanMessage(content=user_message)]
+        response = await reflection_model.with_structured_output(
+            ReflectionOutput, method="function_calling"
+        ).ainvoke(messages)
+        response.conversation_id = input.conversation_id
+        async with AsyncSessionLocal() as session:
+            await enqueue_memory_action(session, response, input.user_id, input.collection_name)
+    except Exception as e:
+        print(f"[reflection] Reflection/mutation failed: {e}", flush=True)
+        raise Exception(f"Error reflecting: {e}") from e
+
+
 
 async def apply_memory_action(
-    reflection: ReflectionOutput, db: AsyncSession, user_id: int, collection_name: str
+    reflection: ReflectionOutput, db: AsyncSession, user_id: int, collection_name: str, conversation_id: int | None = None
 ) -> None:
     if reflection.action == "none" or not reflection.memory_content:
-        print(f"[reflection] apply_memory_action skipped (no-op) action={reflection.action} user_id={user_id} collection={collection_name}", flush=True)
+        print(
+            f"[reflection] apply_memory_action skipped (no-op) action={reflection.action} "
+            f"user_id={user_id} collection={collection_name}",
+            flush=True,
+        )
         return
     try:
-        print(f"[reflection] apply_memory_action start action={reflection.action} user_id={user_id} collection={collection_name} target_ids={reflection.target_memory_ids}", flush=True)
+        print(
+            f"[reflection] apply_memory_action start action={reflection.action} "
+            f"user_id={user_id} collection={collection_name} target_ids={reflection.target_memory_ids}",
+            flush=True,
+        )
+
+        raw_ids = reflection.target_memory_ids or []
+        requested_ids = [int(t) for t in raw_ids if str(t).strip()]
+        valid_ids: list[int] = []
+
+        for target_id in requested_ids:
+            try:
+                await db_get_memory_by_id(target_id, user_id, db)
+                valid_ids.append(target_id)
+            except ValueError:
+                print(
+                    f"[reflection] Skipping invalid target id={target_id} "
+                    f"(not found for user_id={user_id})",
+                    flush=True,
+                )
+
+        if reflection.action == "update":
+            if len(valid_ids) != 1:
+                print(
+                    f"[reflection] update skipped – expected exactly 1 valid target id, "
+                    f"got {len(valid_ids)} (requested={requested_ids}, valid={valid_ids})",
+                    flush=True,
+                )
+                return
+        elif reflection.action == "merge":
+            if len(valid_ids) < 2:
+                print(
+                    f"[reflection] merge skipped – expected >=2 valid target ids, "
+                    f"got {len(valid_ids)} (requested={requested_ids}, valid={valid_ids})",
+                    flush=True,
+                )
+                return
+
         dense_embedding = embed_text(reflection.memory_content)
         sparse_embedding = sparse_embed_text(reflection.memory_content)
         memory_create = MemoryCreate(
@@ -691,22 +759,45 @@ async def apply_memory_action(
             memory_type="implicit",
             memory_category=reflection.memory_category,
             tags=reflection.tags or [],
+            conversation_id=conversation_id,
         )
         bypass_dedup = reflection.action in ("update", "merge")
         result = await create_memory(
-            memory_create, dense_embedding, sparse_embedding,
-            user_id, collection_name, db, bypass_similarity_check=bypass_dedup
+            memory_create,
+            dense_embedding,
+            sparse_embedding,
+            user_id,
+            collection_name,
+            db,
+            bypass_dedup,
         )
         new_memory_id = result["memory"].id
-        print(f"[reflection] Created implicit memory id={new_memory_id} action={reflection.action} user_id={user_id} collection={collection_name}", flush=True)
+        print(
+            f"[reflection] Created implicit memory id={new_memory_id} action={reflection.action} "
+            f"user_id={user_id} collection={collection_name}",
+            flush=True,
+        )
 
         if reflection.action == "update":
-            if reflection.target_memory_ids:
-                old_id = int(reflection.target_memory_ids[0])
-                await update_memory(old_id, MemoryUpdate(superseded_by_id=new_memory_id), None, user_id, collection_name, db)
+            old_id = valid_ids[0]
+            await update_memory(
+                old_id,
+                MemoryUpdate(superseded_by_id=new_memory_id),
+                None,
+                user_id,
+                collection_name,
+                db,
+            )
         elif reflection.action == "merge":
-            for target_id in reflection.target_memory_ids:
-                await update_memory(int(target_id), MemoryUpdate(superseded_by_id=new_memory_id), None, user_id, collection_name, db)
+            for target_id in valid_ids:
+                await update_memory(
+                    target_id,
+                    MemoryUpdate(superseded_by_id=new_memory_id),
+                    None,
+                    user_id,
+                    collection_name,
+                    db,
+                )
     except Exception as e:
         print(f"[reflection] apply_memory_action failed: {e}", flush=True)
         raise Exception(f"Error applying memory action: {e}") from e
@@ -746,41 +837,27 @@ def build_graph():
     graph.add_edge("respond", END)
     return graph
     
-async def chat(user: UserModel, user_message: str, thread_id: str):
-    """
-    Entry point for the /api/chat endpoint.
-    Uses checkpointed graph state (keyed by thread_id) for chat; only the new
-    user message is passed. The route persists messages to DB for the frontend.
-    """
-    conn_string = os.getenv("DATABASE_URL")
-    if not conn_string:
-        raise RuntimeError("DATABASE_URL is required for checkpointing")
-    # Checkpointer expects plain postgresql:// URI, not postgresql+asyncpg://
-    checkpointer_conn = conn_string.replace("postgresql+asyncpg://", "postgresql://", 1)
+async def chat(user: UserModel, user_message: str, thread_id: str, graph, state_capture: dict = None):
+    initial_state: GraphState = {
+        "messages": [HumanMessage(content=user_message)],
+        "user_message": user_message,
+        "retry_count": 0,
+    }
 
-    async with AsyncPostgresSaver.from_conn_string(checkpointer_conn) as checkpointer:
-        builder = build_graph()
-        graph = builder.compile(checkpointer=checkpointer)
-
-        initial_state: GraphState = {
-            "messages": [HumanMessage(content=user_message)],
-            "user_message": user_message,
-            "retry_count": 0,
+    config: RunnableConfig = {
+        "configurable": {
+            "thread_id": thread_id,
+            "user_id": user.id,
+            "collection_name": user.collection_name,
         }
+    }
 
-        config: RunnableConfig = {
-            "configurable": {
-                "thread_id": thread_id,
-                "user_id": user.id,
-                "collection_name": user.collection_name,
-            }
-        }
-
-        async for chunk in graph.astream(
-            initial_state,
-            config=config,
-            stream_mode="messages",
-        ):
+    async for mode,chunk in graph.astream(
+        initial_state,
+        config=config,
+        stream_mode=["messages", "updates"],
+    ):
+        if mode == "messages":
             if isinstance(chunk, tuple):
                 message, _metadata = chunk
             else:
@@ -788,6 +865,10 @@ async def chat(user: UserModel, user_message: str, thread_id: str):
             content = getattr(message, "content", None)
             if isinstance(content, str) and content:
                 yield content
+        elif mode == "updates":
+            if "retrieve_memories" in chunk and state_capture is not None:
+                state_capture["retrieval_results"] = chunk["retrieve_memories"].get("retrieval_results", [])
+                
 
 
 def _format_messages(messages: List[Message]) -> List[Dict]:

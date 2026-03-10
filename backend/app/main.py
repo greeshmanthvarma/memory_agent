@@ -1,13 +1,19 @@
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+_load_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_load_env_path)
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 from pydantic import BaseModel
 from openai import OpenAI
 import os
 import asyncio
-from app.database import AsyncSessionLocal
+from app.graph import compile_graph
 from app.routers.memoryRoutes import memory_router
 from app.routers.authRoutes import auth_router
 from app.routers.chatRoutes import chat_router
@@ -15,8 +21,6 @@ from sqlalchemy import text
 import logging
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 app = FastAPI(
     title="Memory Agent API",
@@ -68,18 +72,9 @@ async def startup_event():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Checkpointer: run setup once so LangGraph checkpoint tables exist.
-    # It expects a plain postgresql:// URI, not postgresql+asyncpg:// (SQLAlchemy driver).
-    conn_string = os.getenv("DATABASE_URL")
-    if conn_string:
-        checkpointer_conn = conn_string.replace("postgresql+asyncpg://", "postgresql://", 1)
-        try:
-            async with AsyncPostgresSaver.from_conn_string(checkpointer_conn) as checkpointer:
-                await checkpointer.setup()
-            logger.info("LangGraph checkpointer setup completed")
-        except Exception as e:
-            logger.warning("Checkpointer setup failed (chat checkpointing may fail): %s", e)
-
+    graph, pool = await compile_graph()
+    app.state.graph = graph
+    app.state.checkpointer_pool = pool
     # Qdrant: ensure user_id and is_superseded indexes on all existing collections
     try:
         ensure_all_collection_indexes()
@@ -101,6 +96,9 @@ async def shutdown_event():
             pass
         except Exception as e:
             logger.warning("Error stopping mutation worker: %s", e)
+    pool = getattr(app.state, "checkpointer_pool", None)
+    if pool:
+        await pool.close()
     await engine.dispose()
 
 @app.get("/")
@@ -114,12 +112,4 @@ async def health():
     """Health check for load balancers and monitoring"""
     return {"status": "ok"}
 
-# async def db_ping():
-#     while True:
-#         await asyncio.sleep(300)
-#         try:
-#             async with AsyncSessionLocal() as db:
-#                 await db.execute(text("SELECT 1"))
-#         except Exception as e:
-#             logger.warning(f"Database connection failed: {str(e)}")
-#             continue
+

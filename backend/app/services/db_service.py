@@ -177,6 +177,21 @@ async def db_update_conversation(conversation_id: int, title: str, user_id: int,
         await db.rollback()
         raise Exception(f"Error updating conversation by id {conversation_id}: {e}")
 
+async def db_delete_memory(memory_id: int, user_id: int, db: AsyncSession):
+    try:
+        result = await db.execute(select(MemoryModel).filter(MemoryModel.id == memory_id).filter(MemoryModel.user_id == user_id))
+        memory = result.scalar_one_or_none()
+        if not memory:
+            raise ValueError(f"Memory with id {memory_id} not found in the database")
+        deleted = memory
+        await db.delete(memory)
+        await db.commit()
+        return deleted
+    except ValueError:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise Exception(f"Error deleting memory by id {memory_id}: {e}")
 
 
 

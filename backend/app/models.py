@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List, Literal, Optional
 import uuid
 from pydantic import BaseModel, Field
+from app.state_models import ReflectionOutput
 
 
 class Memory(BaseModel):
@@ -104,3 +105,9 @@ class ConversationUpdate(BaseModel):
 class TitleFromMessageRequest(BaseModel):
     first_message: str
 
+class MemoryMutationQueue(BaseModel):
+    id: int
+    payload: ReflectionOutput
+    status: Literal["pending", "processing", "done", "failed"]
+    created_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None

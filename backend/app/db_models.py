@@ -105,7 +105,6 @@ class EvalsModel(Base):
 
 
 class MemoryMutationQueueModel(Base):
-    """Postgres-backed queue for memory mutations (create/update/merge). Survives restarts; safe for multiple instances."""
     __tablename__ = "memory_mutation_queue"
 
     id = Column(Integer, primary_key=True, index=True)

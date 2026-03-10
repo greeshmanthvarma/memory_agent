@@ -7,7 +7,7 @@ from app.services.llm_service import (
     chat as chat_service,
     summarize_conversation as summarize_conversation_service,
     get_title as get_title_service,
-    create_reflection_node,
+    reflection as reflection_service,
 )
 from app.middleware.auth import get_current_user
 from app.database import get_db
@@ -18,6 +18,7 @@ from typing import List
 from app.db_models import UserModel, MessageModel, ConversationModel
 from app.services.db_service import db_create_message, db_create_conversation, db_get_conversation, db_get_conversation_messages, db_get_all_conversations as db_get_all_conversations_service, db_delete_conversation as db_delete_conversation_service, db_update_conversation as db_update_conversation_service
 from app.state_models import ReflectionInput
+from app.deps import get_compiled_graph
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ chat_router = APIRouter(
 )
 
 @chat_router.post("/")
-async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db),graph = Depends(get_compiled_graph)):
     try:
         conversation = await db_get_conversation(request.conversation_id, user.id, db)
         thread_id = getattr(conversation, "thread_id", None) or f"{user.id}_{request.conversation_id}"
@@ -42,11 +43,14 @@ async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user)
 
         async def stream():
             full = []
+            state_capture = {"retrieval_results": []}
             try:
                 async for chunk in chat_service(
                     user=user,
                     user_message=request.user_message,
                     thread_id=thread_id,
+                    state_capture=state_capture,
+                    graph=graph
                 ):
                     full.append(chunk)
                     yield chunk
@@ -60,15 +64,16 @@ async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user)
                         conversation_id=request.conversation_id,
                     )
                     await db_create_message(assistant_response, db)
-
                     try:
-                        reflection = await create_reflection_node(user)
                         reflection_input = ReflectionInput(
+                            user_id=user.id,
+                            collection_name=user.collection_name,
                             user_message=request.user_message,
+                            conversation_id=request.conversation_id,
                             assistant_response=text,
-                            retrieval_results=[],
+                            retrieval_results=state_capture["retrieval_results"],
                         )
-                        asyncio.create_task(reflection(reflection_input))
+                        asyncio.create_task(reflection_service(reflection_input))
                     except Exception:
                         logger.exception(
                             "Failed to schedule reflection for conversation_id=%s user_id=%s",
@@ -285,3 +290,4 @@ async def update_conversation_title(conversation_id: int, body: TitleFromMessage
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
