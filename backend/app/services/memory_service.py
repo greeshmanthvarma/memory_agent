@@ -44,6 +44,7 @@ def db_memory_to_memory(db_memory: MemoryModel) -> Memory:
         tags=db_memory.tags,
         memory_category=getattr(db_memory, "memory_category", None),
         related_memories=db_memory.related_memories,
+        superseded_by_id=getattr(db_memory, "superseded_by_id", None),
         last_accessed_at=db_memory.last_accessed_at,
         last_updated_at=db_memory.last_updated_at,
         created_at=db_memory.created_at,

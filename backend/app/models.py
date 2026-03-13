@@ -17,6 +17,7 @@ class Memory(BaseModel):
     tags: List[str] = Field(default_factory=list)
     memory_category: Optional[Literal["fact", "preference", "event"]] = None
     related_memories: List[int] = Field(default_factory=list)
+    superseded_by_id: Optional[int] = None
     last_accessed_at: Optional[datetime] = None
     last_updated_at: Optional[datetime] = None
     created_at: datetime

@@ -95,7 +95,10 @@ export default function ViewMemoryChangesDialog({ open, onOpenChange, memoryUpda
                                 {newMemories.map((memory) => (
                                     <li key={memory.id}>{memory.content}</li>
                                 ))}
-                                {newMemories.length === 0 && !loading && (
+                                {newMemories.length === 0 && memoryUpdate?.payload?.memory_content && !loading && (
+                                    <li>{memoryUpdate.payload.memory_content}</li>
+                                )}
+                                {newMemories.length === 0 && !memoryUpdate?.payload?.memory_content && !loading && (
                                     <li className="text-muted-foreground">—</li>
                                 )}
                             </ul>
