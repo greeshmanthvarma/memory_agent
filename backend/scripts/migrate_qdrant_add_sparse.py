@@ -32,7 +32,6 @@ from app.services.qdrant_service import (
     _ensure_user_id_index,
     _ensure_is_superseded_index,
 )
-from app.services.embedding_service import sparse_embed_text
 
 
 def collection_has_sparse(collection_name: str) -> bool:
@@ -91,7 +90,6 @@ def migrate_collection(old_name: str, new_name: str, vector_size: int) -> int:
             break
         for rec in records:
             payload = rec.payload or {}
-            content = payload.get("content") or ""
             vectors = getattr(rec, "vector", None) or {}
             if isinstance(vectors, dict):
                 dense = vectors.get("dense") or vectors.get(None)
@@ -100,8 +98,7 @@ def migrate_collection(old_name: str, new_name: str, vector_size: int) -> int:
             if not dense:
                 continue
             try:
-                sparse = sparse_embed_text(content)
-                point = build_point(dense, sparse, payload, id=rec.id)
+                point = build_point(dense, payload, id=rec.id)
                 qdrant_client.upsert(collection_name=new_name, points=[point])
                 count += 1
             except Exception as e:

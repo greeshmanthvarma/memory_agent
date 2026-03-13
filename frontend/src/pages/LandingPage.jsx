@@ -81,7 +81,7 @@ export default function LandingPage(){
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ identifier: 'demo', password: 'test123' }),
+                body: JSON.stringify({ identifier: 'Demo', password: 'demo1234' }),
                 credentials: 'include',
             })
             if (response.ok) {

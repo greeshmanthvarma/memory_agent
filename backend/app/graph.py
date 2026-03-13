@@ -10,7 +10,12 @@ async def compile_graph():
     # Checkpointer expects plain postgresql:// URI, not postgresql+asyncpg://
     checkpointer_conn = conn_string.replace("postgresql+asyncpg://", "postgresql://", 1)
     try:
-        pool = AsyncConnectionPool(checkpointer_conn,max_size=10,open=False)
+        pool = AsyncConnectionPool(
+            checkpointer_conn,
+            max_size=10,
+            open=False,
+            kwargs={"autocommit": True},
+        )
         await pool.open()
         checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()

@@ -1,4 +1,5 @@
 from qdrant_client import QdrantClient
+import requests,json
 from qdrant_client.models import (
     Distance,
     VectorParams,
@@ -13,22 +14,24 @@ from qdrant_client.models import (
     Prefetch,
     FusionQuery,
     Fusion,
+    Document
 )
 import uuid
 from dotenv import load_dotenv
 import os
-from fastembed import SparseEmbedding
-from fastembed.rerank.cross_encoder import TextCrossEncoder
+from app.services.embedding_service import sparse_embed_text
 
 load_dotenv()
 
 _qdrant_url = os.getenv("QDRANT_URL")
 _qdrant_api_key = os.getenv("QDRANT_API_KEY")
+IS_CLOUD = bool(_qdrant_api_key)
+
 qdrant_client = QdrantClient(
     url=_qdrant_url,
     api_key=_qdrant_api_key if _qdrant_api_key else None,
+    cloud_inference=True
 )
-reranker = TextCrossEncoder(model_name='jinaai/jina-reranker-v1-turbo-en')
 
 
 def _ensure_user_id_index(collection_name: str):
@@ -95,20 +98,32 @@ def delete_collection(collection_name: str):
     except Exception as e:
         raise Exception(f"Error deleting collection: {e}")
 
-def build_point(dense_embedding: list[float], sparse_embedding: SparseEmbedding | SparseVector, metadata: dict, id: uuid.UUID = None):
-    sv = sparse_embedding if isinstance(sparse_embedding, SparseVector) else SparseVector(indices=sparse_embedding.indices, values=sparse_embedding.values)
+def build_point(dense_embedding: list[float], metadata: dict, id: uuid.UUID = None):
+    content = metadata.get("content")
+    if IS_CLOUD:
+        sparse_vector = Document(
+            text=content,
+            model="qdrant/bm25"
+        )
+    else:
+        sparse_embedding = sparse_embed_text(content)
+        sparse_vector = SparseVector(
+            indices=sparse_embedding.indices,
+            values=sparse_embedding.values
+        )
+    
     return PointStruct(
         id=id or uuid.uuid4(),
         vector={
             "dense": dense_embedding,
-            "sparse": sv,
+            "sparse": sparse_vector,
         },
         payload=metadata,
     )
 
-def add_point(collection_name: str, dense_embedding: list[float], sparse_embedding: SparseEmbedding | SparseVector, metadata: dict, id: uuid.UUID = None):
+def add_point(collection_name: str, dense_embedding: list[float], metadata: dict, id: uuid.UUID = None):
     try:
-        point = build_point(dense_embedding, sparse_embedding, metadata, id)
+        point = build_point(dense_embedding,metadata, id)
         qdrant_client.upsert(collection_name=collection_name,points=[point])
         return point
     except Exception as e:
@@ -140,27 +155,33 @@ def get_point_vectors(collection_name: str, point_id: uuid.UUID) -> tuple[list[f
         raise Exception(f"Error retrieving point vectors: {e}")
 
 
-def search_points(collection_name: str, query: str, dense_query_vector: list[float], sparse_query_vector: SparseEmbedding, limit: int = 10, user_id: int = None):
+def search_points(collection_name: str, query: str, dense_query_vector: list[float], limit: int = 10, user_id: int = None):
     try:
-        if user_id is not None:
-            _ensure_user_id_index(collection_name)
-        _ensure_is_superseded_index(collection_name)
         must_conditions = []
         if user_id is not None:
             must_conditions.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
         must_conditions.append(FieldCondition(key="is_superseded", match=MatchValue(value=False)))
         query_filter = Filter(must=must_conditions) if must_conditions else None
+        if IS_CLOUD:
+            sparse_prefetch = Prefetch(
+                query=Document(text=query, model="qdrant/bm25"),
+                using="sparse",
+                limit=40,
+            )
+        else:
+            sparse_embedding = sparse_embed_text(query)
+            sparse_prefetch = Prefetch(
+                query=SparseVector(
+                    indices=sparse_embedding.indices,
+                    values=sparse_embedding.values,
+                ),
+                using="sparse",
+                limit=40,
+            )
         search_result = qdrant_client.query_points(
             collection_name=collection_name,
             prefetch=[
-                Prefetch(
-                    query=SparseVector(
-                        indices=sparse_query_vector.indices,
-                        values=sparse_query_vector.values,
-                    ),
-                    using="sparse",
-                    limit=40,
-                ),
+                sparse_prefetch,
                 Prefetch(
                     query=dense_query_vector,
                     using="dense",
@@ -172,21 +193,90 @@ def search_points(collection_name: str, query: str, dense_query_vector: list[flo
             with_payload=True,
             query_filter=query_filter,
         )
-        search_result_contents = [result.payload["content"] for result in search_result.points]
-        reranked_results = list (reranker.rerank(query, search_result_contents))
-
-        ranking= [
-            (index, score)
-            for index, score in enumerate(reranked_results)
-        ]
-        ranking.sort(key=lambda x: x[1], reverse=True)
-        ranking= ranking[:limit]
-        final_result = [{"id":search_result.points[index].id, "content":search_result_contents[index], "similarity":score} for index, score in ranking]
-
-
-        return final_result
+        if not search_result.points:
+            return []
+        reranked_results = rerank(query, search_result, limit)
+        return reranked_results
     except Exception as e:
         raise Exception(f"Error searching points: {e}")
+
+
+def search_points_raw(collection_name: str, query: str, dense_query_vector: list[float], limit: int = 10, user_id: int = None):
+
+    try:
+        must_conditions = []
+        if user_id is not None:
+            must_conditions.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
+        must_conditions.append(FieldCondition(key="is_superseded", match=MatchValue(value=False)))
+        query_filter = Filter(must=must_conditions) if must_conditions else None
+
+        if IS_CLOUD:
+            sparse_prefetch = Prefetch(
+                query=Document(text=query, model="qdrant/bm25"),
+                using="sparse",
+                limit=40,
+            )
+        else:
+            sparse_embedding = sparse_embed_text(query)
+            sparse_prefetch = Prefetch(
+                query=SparseVector(
+                    indices=sparse_embedding.indices,
+                    values=sparse_embedding.values,
+                ),
+                using="sparse",
+                limit=40,
+            )
+
+        search_result = qdrant_client.query_points(
+            collection_name=collection_name,
+            prefetch=[
+                sparse_prefetch,
+                Prefetch(
+                    query=dense_query_vector,
+                    using="dense",
+                    limit=40,
+                ),
+            ],
+            query=FusionQuery(fusion=Fusion.RRF),
+            limit=limit,
+            with_payload=True,
+            query_filter=query_filter,
+        )
+        return search_result
+    except Exception as e:
+        raise Exception(f"Error searching points (raw): {e}")
+
+def rerank(query: str, search_result, top_n: int = 10):
+    documents = [point.payload["content"] for point in search_result.points]
+    if not documents:
+        return []
+    url = "https://api.jina.ai/v1/rerank"
+    jina_api_key = (os.getenv("JINA_API_KEY") or "").strip()
+    if not jina_api_key:
+        raise Exception("JINA_API_KEY is not set")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {jina_api_key}"
+    }
+
+    data = {
+        "model": "jina-reranker-v1-base-en",
+        "query": query,
+        "top_n": top_n,
+        "documents": documents,
+        "return_documents": True
+    }
+
+    print(f"[rerank] requesting jina model={data['model']} candidates={len(documents)} top_n={top_n}", flush=True)
+    response = requests.post(url, headers=headers, data=json.dumps(data), timeout=30)
+    response.raise_for_status()
+    payload = response.json()
+    results = payload.get("results", [])
+    usage_total_tokens = (payload.get("usage") or {}).get("total_tokens")
+    print(f"[rerank] response results={len(results)} total_tokens={usage_total_tokens}", flush=True)
+    final_result = [{"id":search_result.points[result["index"]].id, "content":result["document"], "similarity":result["relevance_score"]} for result in results]
+
+    return final_result
 
 def delete_points(collection_name: str, ids: list[uuid.UUID]):
     try:
