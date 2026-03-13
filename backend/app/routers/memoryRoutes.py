@@ -5,7 +5,7 @@ from app.models import MemoryCreate, Memory, MemoryUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.memory_service import create_memory as create_memory_service
-from app.services.embedding_service import embed_text, sparse_embed_text
+from app.services.embedding_service import embed_text
 from app.services.db_service import db_get_all_memories as db_get_all_memories_service, db_get_memory_by_id as db_get_memory_by_id_service
 from app.services.memory_service import db_memory_to_memory, get_memory_by_query as get_memory_by_query_service, update_memory as update_memory_service, delete_memory as delete_memory_service
 from typing import List
@@ -28,8 +28,7 @@ async def create_memory(
 ):
     try:
         dense_embedding = embed_text(memory.content)
-        sparse_embedding = sparse_embed_text(memory.content)
-        result = await create_memory_service(memory,dense_embedding,sparse_embedding,user.id,user.collection_name,db,bypass_similarity_check)
+        result = await create_memory_service(memory, dense_embedding, user.id, user.collection_name, db, bypass_similarity_check)
         
         if result["is_duplicate"]:
             if result["duplicate_type"] == "exact":
@@ -57,8 +56,7 @@ async def get_memory_by_query(
 ) -> List[dict]:
     try:
         dense_query_vector = embed_text(query)
-        sparse_query_vector = sparse_embed_text(query)
-        memories = await get_memory_by_query_service(query, dense_query_vector, sparse_query_vector, user.collection_name, user.id, db)
+        memories = await get_memory_by_query_service(query, dense_query_vector, user.collection_name, user.id, db)
         return memories
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

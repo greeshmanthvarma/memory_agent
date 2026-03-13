@@ -16,7 +16,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 from app.state_models import GraphState, QueryAnalysisOutput, ReflectionOutput, ReflectionInput
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from app.services.embedding_service import embed_text, sparse_embed_text
+from app.services.embedding_service import embed_text
 from app.services.memory_service import get_memory_by_query, create_memory, update_memory
 from app.services.db_service import (
     db_enqueue_memory_mutation,
@@ -598,18 +598,16 @@ async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
 
         async with AsyncSessionLocal() as db:
             primary_dense = embed_text(primary_query)
-            primary_sparse = sparse_embed_text(primary_query)
             results = await get_memory_by_query(
-                primary_query, primary_dense, primary_sparse,
+                primary_query, primary_dense,
                 collection_name, user_id, db
             )
 
             # If we have a distinct user message, also search with it and merge (better recall)
             if user_message and user_message != primary_query:
                 user_dense = embed_text(user_message)
-                user_sparse = sparse_embed_text(user_message)
                 user_results = await get_memory_by_query(
-                    user_message, user_dense, user_sparse,
+                    user_message, user_dense,
                     collection_name, user_id, db
                 )
                 # Merge by memory id, keep max similarity
@@ -622,32 +620,41 @@ async def retrieve_memories(state: GraphState, config: RunnableConfig) -> dict:
 
         if len(results) == 0:
             return {"retrieval_results": []}
+        for i, r in enumerate(results):
+            mem = r.get("memory")
+            content = getattr(mem, "content", "") if mem else ""
+            preview = (content[:80] + "…") if len(content) > 80 else content
+            mid = getattr(mem, "id", "?") if mem else "?"
+            sim = r.get("similarity")
+            print(f"[retrieve_memories] #{i+1} id={mid} similarity={sim:.4f} content={preview!r}", flush=True)
         return {"retrieval_results": results}
     except Exception as e:
         print(f"[graph] retrieve_memories failed: {e}", flush=True)
         return {"retrieval_results": []}
 
 
-MIN_RERANK_SCORE = -4.0
-
-
 def retrieval_evaluation(state: GraphState) -> dict:
     _log_state("retrieval_evaluation", state)
     results = state.get("retrieval_results", [])
     current_retry = state.get("retry_count", 0)
+    MIN_RERANK_SCORE = 0.03
     if len(results) == 0:
         return {
             "retry_count": current_retry + 1,
             "retry_feedback": "No memories were found. Try using broader or more general terms.",
         }
-    elif (results[0].get("similarity") or 0) < MIN_RERANK_SCORE:
-        best = results[0].get("similarity") or 0.0
+
+    best = float(results[0].get("similarity") or 0.0)
+    if best < MIN_RERANK_SCORE:
         return {
             "retry_count": current_retry + 1,
-            "retry_feedback": f"""Best reranker score was {best:.2f}, below the relevance threshold ({MIN_RERANK_SCORE:.2f}).
-                Try rephrasing with different keywords or broader terms.""",
+            "retry_feedback": (
+                f"Best reranker score was {best:.4f}, below the relevance threshold ({MIN_RERANK_SCORE:.4f}). "
+                "Try rephrasing with different keywords, including user-specific terms (location/preferences), "
+                "or using a broader query."
+            ),
         }
-    
+
     return {"retry_count": current_retry, "retry_feedback": None}
 
 def decide_retry(state: GraphState) -> Literal["retry", "respond"]:
@@ -667,11 +674,7 @@ async def respond(state: GraphState) -> dict:
     _log_state("respond", state)
     try:
         results = state.get("retrieval_results", [])
-        best_score = results[0].get("similarity") if results else None
-        if best_score is not None and best_score >= MIN_RERANK_SCORE:
-            memory_context = _format_retrieval_results_for_prompt(results)
-        else:
-            memory_context = _format_retrieval_results_for_prompt([])
+        memory_context = _format_retrieval_results_for_prompt(results) if results else _format_retrieval_results_for_prompt([])
         prompt = _build_chat_prompt(memory_context)
         messages = [SystemMessage(content=prompt)] + state.get("messages", [])
         response = await chat_model.ainvoke(messages)
@@ -753,7 +756,6 @@ async def apply_memory_action(
                 return
 
         dense_embedding = embed_text(reflection.memory_content)
-        sparse_embedding = sparse_embed_text(reflection.memory_content)
         memory_create = MemoryCreate(
             content=reflection.memory_content,
             memory_type="implicit",
@@ -765,7 +767,6 @@ async def apply_memory_action(
         result = await create_memory(
             memory_create,
             dense_embedding,
-            sparse_embedding,
             user_id,
             collection_name,
             db,
