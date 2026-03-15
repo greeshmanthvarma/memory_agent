@@ -14,22 +14,26 @@ Coherence is a personal memory agent that uses a LangGraph-powered chat pipeline
 
 ## Features
 
-- **Persistent memory** – Explicit (user-created) and implicit (extracted from chat) memories stored long-term
-- **Semantic retrieval** – Meaning-based search using embeddings (not keyword match)
-- **Graph-based RAG** – A LangGraph chat pipeline (analysis → retrieval → response) decides when to query the user's memory store and injects retrieved memories into the prompt, using dense + sparse embeddings, **Reciprocal Rank Fusion (RRF)**, and cross-encoder reranking for high-precision matches
-- **Conversation summarization** – Extract durable facts, preferences, and events with deduplication
-- **Memory Space** – Browse, inspect, and trace memories back to conversations
+- **Persistent memory** – Explicit (user-created) and implicit (extracted from chat) memories stored long-term in PostgreSQL and Qdrant
+- **Hybrid retrieval** – Dense (OpenAI `text-embedding-3-small`) + sparse (`qdrant/bm25`) embeddings fused with **Reciprocal Rank Fusion (RRF)**, then reranked with a **Jina cross-encoder** for high-precision matches
+- **Graph-based RAG** – A LangGraph chat pipeline (query analysis → retrieval → evaluation/retry → response) decides when to query the memory store and injects retrieved memories into the system prompt
+- **Retrieval retry** – If the reranker's top score falls below a relevance threshold (or retrieval returns nothing), the graph retries with a rephrased query (up to 2 attempts)
+- **Async reflection + mutation queue** – After each chat turn, a reflection model runs in the background and enqueues a structured `create / update / merge / none` mutation; a long-running worker applies it without blocking the response
+- **Memory versioning** – Updated or merged memories carry a `superseded_by_id` pointer so the full history is preserved; superseded memories are excluded from future searches
+- **Memory change dialog** – Users can review the before/after of any mutation directly in the chat UI
+- **Conversation summarization** – Extract durable facts, preferences, and events from a conversation with deduplication
+- **Memory Space** – Browse, inspect, edit, delete, and trace memories back to their source conversations
 
 ## Tech Stack
 
 **Backend**
 - FastAPI
 - PostgreSQL (SQLAlchemy async)
-- Qdrant (vector database for embeddings)
-- OpenAI (GPT-4o mini for chat, text-embedding-3-small for **dense** embeddings)
-- LangGraph (chat + retrieval + reflection graph)
-- FastEmbed SPLADE (`prithivida/Splade_PP_en_v1`) for **sparse** text embeddings
-- Jina cross-encoder reranker (`jinaai/jina-reranker-v1-turbo-en`)
+- Qdrant (vector database — dense + sparse vectors, payload filters, `cloud_inference=True`)
+- OpenAI (GPT-4o mini for chat/analysis/reflection, `text-embedding-3-small` for **dense** embeddings)
+- LangGraph (chat + retrieval + retry + reflection graph)
+- **Sparse embeddings** – `qdrant/bm25` via Qdrant Cloud inference (free tier); local FastEmbed SPLADE (`prithivida/Splade_PP_en_v1`) available for local dev, disabled in prod via `DISABLE_LOCAL_SPLADE=true`
+- **Cross-encoder reranker** – Jina AI `jina-reranker-v1-base-en` (REST API)
 - JWT authentication (httpOnly cookies)
 - Argon2 password hashing
 
@@ -54,36 +58,39 @@ User -> Frontend (React SPA)
           -> OpenAI (chat, analysis, reflection, embeddings)
 ```
 
-**Request flow** – The browser sends requests to `/api/*` (auth, chat, memory). The backend validates the JWT cookie, then runs the LangGraph chat pipeline (query analysis → optional retrieval → response) and, in parallel, kicks off an async reflection step that can enqueue memory mutations. Chat and summarization use the LLM; memory search uses embeddings + Qdrant; mutations are applied later by the background worker.
+**Request flow** – The browser sends requests to `/api/*` (auth, chat, memory). The backend validates the JWT cookie, then runs the LangGraph chat pipeline (query analysis → retrieval → evaluation/retry → response). After the response is returned, an async reflection step runs in the background and can enqueue a memory mutation. The mutation worker applies it later.
 
-**Why two stores** – PostgreSQL holds structured, queryable data (users, memory metadata, content, tags, conversations, messages). Qdrant holds only vector embeddings and a `user_id` for filtering. Semantic search runs in Qdrant; the backend then joins back to PostgreSQL for full memory records.
+**Why two stores** – PostgreSQL holds structured, queryable data (users, memory metadata, content, tags, `superseded_by_id`, conversations, messages, `memory_mutation_queue`). Qdrant holds dense + sparse vector embeddings plus a payload (`user_id`, `is_superseded`) for filtering. Semantic search runs in Qdrant; the backend joins back to PostgreSQL for full memory records.
 
-**How chat uses memories** – When you send a message, the chat endpoint runs a LangGraph. A **query analysis** node decides whether personal memories would help and, if so, produces a `retrieval_query`. A **retrieve_memories** node embeds this query (and, when helpful, also the raw user message), performs a hybrid dense+sparse search in Qdrant (scoped to your `user_id`) using **Reciprocal Rank Fusion (RRF)** over the two modalities, then reranks the candidates with a Jina cross-encoder before returning the top matches. Those memories are formatted into a memory context block and injected into the system prompt before the assistant responds, so personalization is driven by the graph-controlled retrieval flow rather than OpenAI tool calls.
+**How chat uses memories** – When you send a message, the chat endpoint runs a LangGraph graph. A **query_analysis** node decides whether personal memories would help and produces a `retrieval_query`. A **retrieve_memories** node embeds that query, issues two Qdrant prefetch queries (dense + sparse), fuses the ranked candidates with **RRF**, then reranks them with the **Jina cross-encoder**. A **retrieval_evaluation** node checks the top reranker score against a relevance threshold (`MIN_RERANK_SCORE = 0.03`); if the score is too low or retrieval returned nothing, the graph loops back to **query_analysis** with retry feedback for a rephrased query (up to 2 retries via `decide_retry`). The final memories are injected into the system prompt before the assistant responds.
 
-**User isolation** – Each user has their own Qdrant collection (`user_{user_id}_memories`). All memory search is filtered by `user_id` so one user never sees another’s data.
+After the response is returned, an async **reflection** pass runs in the background. The reflection model decides whether to `create`, `update`, `merge`, or `none` a memory mutation, then enqueues a structured job in `memory_mutation_queue`. A long-running background worker claims and applies the mutation to both PostgreSQL and Qdrant. Updated or merged memories carry a `superseded_by_id` pointer and are marked `is_superseded=True` in the Qdrant payload so they are excluded from future searches. Users can review the before/after of any mutation via the **memory change dialog** in the chat UI.
 
-### Mermaid LangGraph + async reflection diagram
+**User isolation** – Each user gets their own Qdrant collection (`user_{user_id}_memories`). Payload indexes on `user_id` and `is_superseded` are created idempotently on collection creation and before each filtered search so they work correctly on Qdrant Cloud.
+
+### LangGraph + async reflection diagram
 
 ```mermaid
-graph LR
-  subgraph ChatGraph
-    START((START)) --> QA[query_analysis]
-    QA --> RM[retrieve_memories]
-    QA --> RESP[respond]
+graph TD
+  subgraph ChatGraph["Chat graph"]
+    S((__start__)) --> QA[query_analysis]
+    QA -->|personal / ambiguous| RM[retrieve_memories]
+    QA -->|general_knowledge| RESP[respond]
     RM --> RE[retrieval_evaluation]
-    RE --> QA
-    RE --> RESP
-    RESP --> END((END))
+    RE -->|retry| QA
+    RE -->|respond| RESP
+    RESP --> E((__end__))
   end
 
-  subgraph ReflectionAndMutation["Async reflection + mutation queue"]
-    RESP --> REFLECT[reflection_model with structured output]
-    REFLECT --> ENQ[enqueue_memory_action]
-    ENQ --> QUEUE[(memory_mutation_queue)]
-    QUEUE --> WORKER[run_mutation_worker]
-    WORKER --> APPLY[apply_memory_action]
-    APPLY --> DB[(PostgreSQL memories)]
-    APPLY --> VEC[(Qdrant vectors)]
+  subgraph MutationWorkflow["Async mutation workflow"]
+    RESP -.->|after response| RF[reflection_model]
+    RF -->|create / update / merge| EQ[enqueue_memory_action]
+    RF -->|none| SK((__end__))
+    EQ --> MQ[(memory_mutation_queue)]
+    MQ --> WK[run_mutation_worker]
+    WK --> AM[apply_memory_action]
+    AM --> PG[(PostgreSQL)]
+    AM --> QD[(Qdrant)]
   end
 ```
 
@@ -109,7 +116,9 @@ For reflection, the model uses `with_structured_output(ReflectionOutput, method=
 
 ### Hybrid dense+sparse retrieval, Reciprocal Rank Fusion (RRF), and reranking
 
-Memories are indexed in Qdrant with both **dense embeddings** (OpenAI `text-embedding-3-small`) and **sparse SPLADE embeddings** (`prithivida/Splade_PP_en_v1`). At retrieval time, the backend issues two prefetches (dense + sparse) and combines them with **Reciprocal Rank Fusion (RRF)** to get a strong candidate set across both modalities. Those candidates are then passed through a **Jina cross-encoder reranker** (`jinaai/jina-reranker-v1-turbo-en`), and only the highest-scoring matches above a relevance threshold are returned to the graph. This stack improves recall and precision compared to using only dense embeddings or naive vector similarity.
+Memories are indexed in Qdrant with both **dense embeddings** (OpenAI `text-embedding-3-small`) and **sparse BM25 embeddings** (`qdrant/bm25` via Qdrant Cloud inference — free tier). At retrieval time, the backend issues two Qdrant prefetch queries (dense + sparse) and combines them with **Reciprocal Rank Fusion (RRF)** to get a strong candidate set across both modalities. Those candidates are then passed through the **Jina cross-encoder reranker** (`jina-reranker-v1-base-en` via Jina REST API). A **retrieval_evaluation** node checks the top reranker score against `MIN_RERANK_SCORE = 0.03`; if the score is too low or no memories were found, the graph retries with a rephrased query (up to 2 attempts via `decide_retry`). Only the highest-scoring memories above the threshold are injected into the prompt.
+
+For local development, sparse embeddings fall back to the local FastEmbed SPLADE model (`prithivida/Splade_PP_en_v1`). Set `DISABLE_LOCAL_SPLADE=true` in production to skip the model download and rely solely on Qdrant Cloud inference.
 
 ## Deployment
 
@@ -125,8 +134,9 @@ The frontend never talks directly to databases or OpenAI; all access is mediated
 - Python 3.10+
 - Node.js 18+
 - PostgreSQL
-- Qdrant (local or cloud)
+- Qdrant (local or Qdrant Cloud)
 - OpenAI API key
+- Jina API key (for reranking — free tier available at [jina.ai](https://jina.ai))
 
 ## Environment Variables
 
@@ -135,16 +145,20 @@ The frontend never talks directly to databases or OpenAI; all access is mediated
 ```
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname
 QDRANT_URL=http://localhost:6333
-# Qdrant Cloud: set QDRANT_API_KEY (from cluster API Keys in dashboard)
+# Qdrant Cloud: set QDRANT_API_KEY (from cluster API Keys dashboard)
+QDRANT_API_KEY=your_qdrant_api_key
 OPENAI_API_KEY=your_openai_api_key
+JINA_API_KEY=your_jina_api_key
 JWT_SECRET=your_jwt_secret
 CORS_ORIGINS=http://localhost:5173
 # Production (HTTPS): COOKIE_SECURE=true
+# Disable local SPLADE model in production (uses Qdrant Cloud inference instead):
+# DISABLE_LOCAL_SPLADE=true
 # Optional: DB_ECHO=true to log SQL (default: false)
 ```
 
 - **Neon (or any URL with query params)**: The app strips the query string from `DATABASE_URL` and sets `ssl=True` in `connect_args` so asyncpg does not receive unsupported params (e.g. `channel_binding`).
-- **Qdrant**: A payload index on `user_id` is created when needed (on collection create and before filtered search) so filters work on Qdrant Cloud.
+- **Qdrant**: Payload indexes on `user_id` (integer) and `is_superseded` (bool) are created idempotently on collection creation and before filtered search so they work on Qdrant Cloud.
 
 **Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. The live demo is hosted on Vercel and proxies API requests to the backend (no backend URL in the repo).
 
@@ -217,8 +231,11 @@ To try the app without running it locally, use the [live demo](https://coherence
 **Memory** (`/api/memory`)
 - `POST /create` - Create explicit or implicit memory
 - `GET /` - List user's memories
-- `GET /related` - Semantic search (query param `q`)
-- `GET /{id}` - Get memory by ID
+- `GET /related` - Semantic search (query param `query`)
+- `GET /mutation-queue` - Latest mutation job for current user (status, payload, before/after)
+- `GET /{id}` - Get memory by ID (includes `superseded_by_id`)
+- `PATCH /{id}` - Update memory content, category, tags, or importance
+- `DELETE /{id}` - Delete memory
 
 ## Project Structure
 
@@ -259,6 +276,9 @@ memory agent/
 │   │   ├── ThemeContext.jsx
 │   │   ├── components/
 │   │   │   ├── app-sidebar.jsx
+│   │   │   ├── AlertDialog.jsx
+│   │   │   ├── LogMemoryDialog.jsx
+│   │   │   ├── ViewMemoryChangesDialog.jsx
 │   │   │   ├── memory/
 │   │   │   │   ├── MemoryBubble.jsx
 │   │   │   │   ├── MemoryDialog.jsx
@@ -278,18 +298,9 @@ memory agent/
 ## What's next
 
 - ~~**Streaming chat**~~ ✓ – Stream LLM tokens as they’re generated so responses appear incrementally and avoid long proxy timeouts.
-- **Edit / delete memories** – Let users update or remove memories from Memory Space.
+- ~~**Edit / delete memories**~~ ✓ – Users can update or remove memories from Memory Space.
+- ~~**Memory change dialog**~~ ✓ – Review the before/after of each mutation (update/merge) in the chat UI.
 - **Export memories** – Export memories (e.g. JSON or markdown) for backup or portability.
-- **Stronger dedup** – Tune similarity thresholds and add merge/merge-prompt for near-duplicate facts and preferences.
-
-### Phase 2 (integrations)
-
+- ~~**Stronger dedup**~~ ✓ – Exact match, hybrid dense+sparse semantic similarity (RRF, threshold 0.9), and LLM-based merge via reflection all work in concert.
 - **Google Calendar** – Sync events (meetings, reminders, occasions) into memories so the agent can reference past and upcoming events in conversation (OAuth2 + Calendar API).
-- **Google Photos** – Ingest photo metadata (dates, albums, locations) or use vision to describe photos and create memories (e.g. “Trip to X”, “Family gathering”) via Photos Library API and optional vision model.
-
-Phase 2 adds *more tools*: the model can call Calendar and Photos when the user asks. The flow stays reactive (user asks → model uses tools → reply).
-
-### Phase 3 (agentic)
-
-- Phase 3 introduces an agent loop with planning, tool chaining, and recovery rather than single-turn tool calls.
 
