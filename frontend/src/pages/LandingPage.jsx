@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { motion, useInView } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
-import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles } from "lucide-react"
+import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, RefreshCw } from "lucide-react"
 import MemoryBubble from '@/components/memory/MemoryBubble'
 
 const LEFT_BUBBLES = [
@@ -40,6 +40,8 @@ export default function LandingPage(){
     },[user])
 
   const [cursorStart, setCursorStart] = useState({ x: 0, y: 0 })
+  const flowRef = useRef(null)
+  const isFlowInView = useInView(flowRef, { amount: 0.2 })
   const bentoRef = useRef(null)
   const isBentoInView = useInView(bentoRef, { amount: 0.2 })
 
@@ -229,6 +231,50 @@ export default function LandingPage(){
                         </TooltipContent>
                     </Tooltip>
                     </div>
+                </motion.div>
+            </section>
+            <section ref={flowRef} className="w-full max-w-5xl mx-auto px-4 mt-16 md:mt-20">
+                <motion.h2
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={isFlowInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+                    transition={{ duration: 0.4 }}
+                    className="text-lg font-semibold text-center text-muted-foreground mb-8"
+                >
+                    When you send a message
+                </motion.h2>
+                <motion.div
+                    className="flex flex-wrap justify-center items-center gap-3 sm:gap-2 md:gap-4"
+                    initial="hidden"
+                    animate={isFlowInView ? "show" : "hidden"}
+                    variants={{
+                        hidden: {},
+                        show: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+                    }}
+                >
+                    {[
+                        { icon: MessageSquare, label: "You send a message" },
+                        { icon: Search, label: "Relevant memories are found" },
+                        { icon: Reply, label: "AI responds with context" },
+                        { icon: RefreshCw, label: "Memories updated in background" },
+                    ].map((step, i) => (
+                        <span key={step.label} className="flex items-center gap-3 sm:gap-2 md:gap-4">
+                            {i > 0 && (
+                                <span className="text-muted-foreground/40 text-lg hidden sm:inline" aria-hidden>→</span>
+                            )}
+                            <motion.div
+                                variants={{
+                                    hidden: { opacity: 0, y: 16 },
+                                    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+                                }}
+                                className="flex flex-col items-center gap-2 min-w-[7rem]"
+                            >
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200/50 dark:border-white/20 bg-muted/50">
+                                    <step.icon className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <p className="text-xs sm:text-sm text-center text-muted-foreground max-w-[8rem]">{step.label}</p>
+                            </motion.div>
+                        </span>
+                    ))}
                 </motion.div>
             </section>
             <section className="w-full max-w-7xl mx-auto px-4 mt-24 md:mt-32 mb-24 md:mb-32">
