@@ -4,11 +4,11 @@ import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { motion, useInView } from 'motion/react'
+import { motion } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
-import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, RefreshCw } from "lucide-react"
+import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, RefreshCw, ArrowRightIcon } from "lucide-react"
 import MemoryBubble from '@/components/memory/MemoryBubble'
-
+import AnimatedPulse from '@/components/animatedPulse'
 const LEFT_BUBBLES = [
     { id: 'landing-l-1', content: 'Prefers dark mode for coding', style: { top: '20%', left: '8%' } },
     { id: 'landing-l-2', content: 'Meeting with Alex on Thursday', style: { top: '55%', left: '3%' } },
@@ -27,6 +27,7 @@ export default function LandingPage(){
     const [isChatHovered, setIsChatHovered] = useState(false)
     const [isSummaryHovered, setIsSummaryHovered] = useState(false)
     const [position, setPosition] = useState({ x: 0, y: 0 });
+    const pageRef = useRef(null)
     const summarizeConversationRef = useRef(null)
     const summaryOverlayRef = useRef(null)
     const summaryChatRef = useRef(null)
@@ -40,20 +41,6 @@ export default function LandingPage(){
     },[user])
 
   const [cursorStart, setCursorStart] = useState({ x: 0, y: 0 })
-  const flowRef = useRef(null)
-  const isFlowInView = useInView(flowRef, { amount: 0.2 })
-  const bentoRef = useRef(null)
-  const isBentoInView = useInView(bentoRef, { amount: 0.2 })
-
-  const bentoContainer = {
-    hidden: {},
-    show: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
-  }
-  const bentoItem = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeInOut' } },
-  }
-
   useLayoutEffect(() => {
     if (!isSummaryHovered || !summarizeConversationRef.current || !summaryOverlayRef.current || !summaryChatRef.current) return
     const measure = () => {
@@ -113,9 +100,11 @@ export default function LandingPage(){
     const responseText = "Since you enjoy hiking, this weekend could be a great opportunity to hit the trails! Whether it's a well-known spot or a new path you've been wanting to explore, being in nature can be really refreshing. If you're looking for something else, maybe consider grabbing a coffee at your favorite café..."
 
     return (
-        <div className="min-h-svh w-full relative bg-background flex flex-col overflow-y-auto">
-            <section className="min-h-svh w-full flex flex-col items-center justify-center p-6 md:p-10 relative">
-            <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(139,92,246,0.12),transparent_50%)] dark:bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.08),transparent_50%)] bg-center bg-no-repeat" />
+        <div ref={pageRef} className="min-h-svh w-full bg-background relative flex flex-col overflow-y-auto">
+            <div className="fixed size-full inset-0 z-0 pointer-events-none">
+                <AnimatedPulse theme={theme} />
+            </div>
+            <section className="min-h-svh w-full flex flex-col items-center justify-center p-6 md:p-10 relative z-10">
             <motion.div 
             initial={{ opacity: 0, filter: 'blur(10px)' }}
             animate={{ opacity: 1, filter: 'blur(0px)' }}
@@ -190,12 +179,12 @@ export default function LandingPage(){
                     delay: 0.3
                  }}
                 className="relative z-10 flex items-center justify-center w-full max-w-6xl mx-auto px-3 sm:px-4">
-                    <div className="flex flex-col items-center justify-center gap-4 flex-1 min-w-0">
-                    <h1 className="text-2xl px-4 md:text-4xl lg:text-5xl font-bold text-neutral-700 dark:text-white max-w-4xl leading-relaxed lg:leading-snug text-center mx-auto">
+                    <div className="flex flex-col items-center justify-center gap-2 sm:gap-3 flex-1 min-w-0">
+                    <h1 className="text-2xl px-4 md:text-4xl lg:text-5xl font-bold text-neutral-700 dark:text-white max-w-4xl leading-tight tracking-tight text-center mx-auto">
                         An AI that{' '}
                         <span className="relative inline-block px-2">
                             <motion.span
-                            className="absolute inset-0 rounded-md bg-indigo-500/30 dark:bg-indigo-400/30"
+                            className="absolute inset-0 rounded-md bg-indigo-500/30 dark:bg-green-500/20"
                             initial={{ scaleX: 0 }}
                             animate={{ scaleX: 1 }}
                             transition={{
@@ -206,12 +195,12 @@ export default function LandingPage(){
                             style={{ transformOrigin: 'left' }}
                             />
                             <span className="relative z-10 font-extrabold text-foreground">
-                            remembers
+                            remembers and adapts
                             </span>
                         </span>{' '}
                         across conversations.
                     </h1>
-                    <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-2xl text-center mx-auto">
+                    <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-2xl text-center mx-auto leading-snug tracking-tight">
                         Persistent memory powered by semantic search and intelligent recall.
                     </p>
                     <Tooltip>
@@ -233,60 +222,59 @@ export default function LandingPage(){
                     </div>
                 </motion.div>
             </section>
-            <section ref={flowRef} className="w-full max-w-5xl mx-auto px-4 mt-16 md:mt-20">
+            <section className="w-full max-w-4xl mx-auto px-4 mt-16 md:mt-20 relative z-10">
                 <motion.h2
                     initial={{ opacity: 0, y: 12 }}
-                    animate={isFlowInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0, root: pageRef }}
                     transition={{ duration: 0.4 }}
-                    className="text-lg font-semibold text-center text-muted-foreground mb-8"
+                    className="text-sm font-medium text-center text-muted-foreground uppercase tracking-widest mb-10"
                 >
                     When you send a message
                 </motion.h2>
-                <motion.div
-                    className="flex flex-wrap justify-center items-center gap-3 sm:gap-2 md:gap-4"
-                    initial="hidden"
-                    animate={isFlowInView ? "show" : "hidden"}
-                    variants={{
-                        hidden: {},
-                        show: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
-                    }}
-                >
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-6 sm:gap-0">
                     {[
                         { icon: MessageSquare, label: "You send a message" },
                         { icon: Search, label: "Relevant memories are found" },
                         { icon: Reply, label: "AI responds with context" },
                         { icon: RefreshCw, label: "Memories updated in background" },
                     ].map((step, i) => (
-                        <span key={step.label} className="flex items-center gap-3 sm:gap-2 md:gap-4">
-                            {i > 0 && (
-                                <span className="text-muted-foreground/40 text-lg hidden sm:inline" aria-hidden>→</span>
-                            )}
+                        <div key={step.label} className="flex sm:flex-row flex-col items-center">
                             <motion.div
-                                variants={{
-                                    hidden: { opacity: 0, y: 16 },
-                                    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
-                                }}
-                                className="flex flex-col items-center gap-2 min-w-[7rem]"
+                                initial={{ opacity: 0, y: 16 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0, root: pageRef }}
+                                transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 + i * 0.12 }}
+                                className="flex flex-col items-center gap-2.5 w-[8rem]"
                             >
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200/50 dark:border-white/20 bg-muted/50">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm">
                                     <step.icon className="h-4 w-4 text-muted-foreground" />
                                 </div>
-                                <p className="text-xs sm:text-sm text-center text-muted-foreground max-w-[8rem]">{step.label}</p>
+                                <p className="text-xs text-center text-muted-foreground leading-snug">{step.label}</p>
                             </motion.div>
-                        </span>
+                            {
+                            i < 3 && (
+                                <motion.div
+                                initial={{ opacity: 0, y: 16 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, amount: 0, root: pageRef }}
+                                transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 + i * 0.12 }}
+                                className="flex h-10 w-10 items-center justify-center shadow-sm px-2"
+                                >
+                                    <ArrowRightIcon className="w-4 h-4 text-muted-foreground" />
+                                </motion.div>
+                            )}
+                        </div>
                     ))}
-                </motion.div>
+                </div>
             </section>
-            <section className="w-full max-w-7xl mx-auto px-4 mt-24 md:mt-32 mb-24 md:mb-32">
-                <motion.div
-                    ref={bentoRef}
-                    className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-[12rem_18rem] gap-2"
-                    initial="hidden"
-                    animate={isBentoInView ? 'show' : 'hidden'}
-                    variants={bentoContainer}
-                >
+            <section className="w-full max-w-7xl mx-auto px-4 mt-24 md:mt-32 mb-24 md:mb-32 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-[12rem_18rem] gap-2">
                     <motion.div
-                        variants={bentoItem}
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0, root: pageRef }}
+                        transition={{ duration: 0.4, ease: 'easeOut', delay: 0.05 }}
                         className="w-full min-h-[18rem] md:row-span-2 md:min-w-[12rem] md:w-[24rem] md:min-h-0 flex flex-col items-center justify-center backdrop-blur-xl border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
                         onMouseEnter={() => setIsChatHovered(true)}
                         onMouseLeave={() => setIsChatHovered(false)}
@@ -329,7 +317,10 @@ export default function LandingPage(){
                         </div>
                     </motion.div>
                     <motion.div
-                    variants={bentoItem}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0, root: pageRef }}
+                    transition={{ duration: 0.4, ease: 'easeOut', delay: 0.13 }}
                     onMouseEnter={() => setIsSummaryHovered(true)}
                     onMouseLeave={() => setIsSummaryHovered(false)}
                     className="md:col-span-2 relative flex items-center justify-center min-h-[12rem] md:h-[12rem] w-full border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
@@ -402,17 +393,29 @@ export default function LandingPage(){
                                 </div>
                             </motion.div>
                     </motion.div>
-                    <motion.div variants={bentoItem} className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-2 md:row-start-2 md:mt-4 md:mr-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0, root: pageRef }}
+                        transition={{ duration: 0.4, ease: 'easeOut', delay: 0.21 }}
+                        className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-2 md:row-start-2 md:mt-4 md:mr-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
+                    >
                         <p className="text-lg font-semibold text-center">Semantic search</p>
                         <p className="text-xs text-muted-foreground text-center">Powered by RAG, find relevant memories by meaning</p>
                     </motion.div>
-                    <motion.div variants={bentoItem} className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-3 md:row-start-2 md:mt-4 md:ml-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0, root: pageRef }}
+                        transition={{ duration: 0.4, ease: 'easeOut', delay: 0.29 }}
+                        className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-3 md:row-start-2 md:mt-4 md:ml-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
+                    >
                         <p className="text-lg font-semibold text-center">Log memories manually</p>
                         <p className="text-xs text-muted-foreground text-center">Add detailed memories, facts or preferences anytime</p>
                     </motion.div>
-                </motion.div>
+                </div>
             </section>
-            <footer className="w-full border-t border-white/30 dark:border-white/10 py-8 mt-16">
+            <footer className="w-full border-t border-white/30 dark:border-white/10 py-8 mt-16 relative z-10">
                 <div className="w-full max-w-7xl mx-auto px-4 flex flex-col items-center gap-2 text-center">
                     <p className="text-sm text-muted-foreground">
                         Built with React · Vite · Tailwind CSS · Motion · FastAPI · PostgreSQL · Qdrant · OpenAI
