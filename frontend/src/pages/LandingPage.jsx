@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { motion } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
-import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, RefreshCw, ArrowRightIcon } from "lucide-react"
+import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, RefreshCw, ArrowRightIcon} from "lucide-react"
 import MemoryBubble from '@/components/memory/MemoryBubble'
 import AnimatedPulse from '@/components/animatedPulse'
 const LEFT_BUBBLES = [
@@ -26,6 +26,7 @@ export default function LandingPage(){
     const [isDemoLoading, setIsDemoLoading] = useState(false)
     const [isChatHovered, setIsChatHovered] = useState(false)
     const [isSummaryHovered, setIsSummaryHovered] = useState(false)
+    const [isReflectionHovered, setIsReflectionHovered] = useState(false)
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const pageRef = useRef(null)
     const summarizeConversationRef = useRef(null)
@@ -287,7 +288,7 @@ export default function LandingPage(){
                                 Chat with context
                             </p>
                             <p className="text-sm text-muted-foreground text-center mb-4 px-4">
-                                The AI uses your memories when needed to personalize responses.
+                                The AI uses your memories to personalize responses.
                             </p>
                         </motion.div>
                         
@@ -398,30 +399,85 @@ export default function LandingPage(){
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true, amount: 0, root: pageRef }}
                         transition={{ duration: 0.4, ease: 'easeOut', delay: 0.21 }}
-                        className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-2 md:row-start-2 md:mt-4 md:mr-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
+                        onMouseEnter={() => setIsReflectionHovered(true)}
+                        onMouseLeave={() => setIsReflectionHovered(false)}
+                        className="relative flex flex-col items-center justify-center min-h-[14rem] md:min-h-0 md:col-span-2 md:col-start-2 md:row-start-2 border border-gray-200/30 dark:border-white/10 rounded-xl overflow-hidden p-5 gap-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
                     >
-                        <p className="text-lg font-semibold text-center">Semantic search</p>
-                        <p className="text-xs text-muted-foreground text-center">Powered by RAG, find relevant memories by meaning</p>
-                    </motion.div>
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0, root: pageRef }}
-                        transition={{ duration: 0.4, ease: 'easeOut', delay: 0.29 }}
-                        className="flex flex-col items-center justify-center gap-1 border border-gray-200/30 dark:border-white/10 rounded-xl min-h-0 p-4 mt-2 md:col-start-3 md:row-start-2 md:mt-4 md:ml-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
-                    >
-                        <p className="text-lg font-semibold text-center">Log memories manually</p>
-                        <p className="text-xs text-muted-foreground text-center">Add detailed memories, facts or preferences anytime</p>
+                        <motion.p
+                            animate={{ opacity: isReflectionHovered ? 0.2 : 1, filter: isReflectionHovered ? 'blur(2px)' : 'blur(0px)' }}
+                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            className="text-2xl font-bold text-center"
+                        >
+                            Memories evolve automatically
+                        </motion.p>
+                        <motion.p
+                            animate={{ opacity: isReflectionHovered ? 0.2 : 1, filter: isReflectionHovered ? 'blur(2px)' : 'blur(0px)' }}
+                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            className="text-sm text-muted-foreground text-center"
+                        >
+                            After every response, a reflection model creates, updates, or merges memories in the background.
+                        </motion.p>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: isReflectionHovered ? 1 : 0, filter: isReflectionHovered ? 'blur(0px)' : 'blur(4px)' }}
+                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            className="absolute inset-0 flex items-stretch justify-center gap-3 px-5 py-5 pointer-events-none"
+                        >
+                            {[
+                                {
+                                    label: 'Created',
+                                    before: 'Just give me the short version, I hate long explanations.',
+                                    after: 'Prefers concise answers over long explanations.',
+                                },
+                                {
+                                    label: 'Updated',
+                                    before: 'Enjoys hiking on weekends.',
+                                    after: 'Enjoys hiking. Recently tried trail running.',
+                                },
+                                {
+                                    label: 'Merged',
+                                    before: ['Works in ML.', 'Interested in NLP.'],
+                                    after: 'Works in ML, currently focused on NLP and RAG systems.',
+                                },
+                            ].map((item, i) => (
+                                <motion.div
+                                    key={item.label}
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: isReflectionHovered ? 1 : 0, y: isReflectionHovered ? 0 : 8 }}
+                                    transition={{ duration: 0.3, ease: 'easeOut', delay: isReflectionHovered ? 0.05 + i * 0.07 : 0 }}
+                                    className="flex flex-col gap-2 flex-1 rounded-lg border border-border bg-muted/30 px-3 py-2.5"
+                                >
+                                    <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">{item.label}</span>
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{item.label === 'Created' ? 'Message' : 'Before'}</p>
+                                        {Array.isArray(item.before) ? (
+                                            <div className="flex flex-col gap-0.5">
+                                                {item.before.map((b, j) => (
+                                                    <p key={j} className="text-xs text-muted-foreground line-through leading-relaxed">{b}</p>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className={`text-xs leading-relaxed ${item.label === 'Created' ? 'text-muted-foreground italic' : 'text-muted-foreground line-through'}`}>{item.before}</p>
+                                        )}
+                                    </div>
+                                    <div className="w-full h-px bg-border/50" />
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">After</p>
+                                        <p className="text-xs text-foreground leading-relaxed">{item.after}</p>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </motion.div>
                     </motion.div>
                 </div>
             </section>
-            <footer className="w-full border-t border-white/30 dark:border-white/10 py-8 mt-16 relative z-10">
+            <footer className="w-full border-t border-border py-8 mt-16 relative z-10">
                 <div className="w-full max-w-7xl mx-auto px-4 flex flex-col items-center gap-2 text-center">
                     <p className="text-sm text-muted-foreground">
-                        Built with React · Vite · Tailwind CSS · Motion · FastAPI · PostgreSQL · Qdrant · OpenAI
+                        Built with React · FastAPI · LangGraph · PostgreSQL · Qdrant · OpenAI
                     </p>
-                    <p className="text-xs text-muted-foreground/80">
-                        © {new Date().getFullYear()} Coherence · Portfolio project
+                    <p className="text-xs text-muted-foreground/60">
+                        © {new Date().getFullYear()} Greeshmanth Varma · Portfolio project
                     </p>
                 </div>
             </footer>
