@@ -136,7 +136,8 @@ export default function LandingPage(){
                     delay: 0.5
                  }}
                 >
-                    <div className="flex min-w-0 shrink items-center justify-center px-1 sm:px-4">
+                    <div className="flex min-w-0 shrink items-center gap-2 px-1 sm:px-4">
+                        <img src="/logo.svg" alt="Coherence" className="h-6 w-6 flex-shrink-0 dark:invert" />
                         <p className="text-xl sm:text-2xl font-bold text-neutral-700 dark:text-white truncate">Coherence</p>
                     </div>
                     
