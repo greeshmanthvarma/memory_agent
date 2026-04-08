@@ -1,12 +1,12 @@
-import { useEffect, useState, useRef, useLayoutEffect } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect, type CSSProperties } from 'react'
 import { useAuth } from '@/AuthContext'
 import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
-import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, RefreshCw, ArrowRightIcon } from "lucide-react"
+import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, BrainCog, ScanSearch, Sparkles } from "lucide-react"
 import MemoryBubble from '@/components/memory/MemoryBubble'
 import AnimatedPulse from '@/components/animatedPulse'
 import type { Memory } from '@/types'
@@ -55,6 +55,239 @@ const MUTATION_CARDS = [
     after: 'Works in ML, currently focused on NLP and RAG systems.',
   },
 ]
+
+const PIPELINE_STEPS = [
+  {
+    icon: MessageSquare,
+    title: 'Message received',
+    short: 'Your message enters the LangGraph pipeline.',
+    detail: 'A LangGraph state graph orchestrates every step, from intent classification through retrieval, evaluation, and response generation, as a single coordinated run.',
+  },
+  {
+    icon: BrainCog,
+    title: 'Query analysis',
+    short: 'Intent is classified and a retrieval query is formed.',
+    detail: 'GPT-4o mini classifies intent as personal, ambiguous, or general knowledge and produces a retrieval query via structured output. General-knowledge messages skip straight to response.',
+  },
+  {
+    icon: Search,
+    title: 'Memory retrieval',
+    short: 'Relevant memories are found via hybrid search.',
+    detail: 'Two Qdrant prefetch queries, dense (text-embedding-3-small) and sparse (BM25), are fused with Reciprocal Rank Fusion, then reranked by a Jina cross-encoder for precision.',
+  },
+  {
+    icon: ScanSearch,
+    title: 'Retrieval evaluation',
+    short: 'Results are scored. Low quality triggers a retry.',
+    detail: 'The top reranker score is checked against a relevance threshold. If it\'s too low or nothing was found, the graph loops back to query analysis with feedback for a rephrased query, up to 2 retries.',
+  },
+  {
+    icon: Reply,
+    title: 'Response generation',
+    short: 'AI responds with context from your memories.',
+    detail: 'Retrieved memories are injected into the system prompt with temporal context. The model streams a personalized response, so tokens appear as they\'re generated.',
+  },
+  {
+    icon: Sparkles,
+    title: 'Async reflection',
+    short: 'Memories are updated in the background.',
+    detail: 'After the response is returned, a background reflection model decides to create, update, merge, or skip a memory mutation. The job is enqueued and a worker applies it to PostgreSQL and Qdrant without blocking the chat.',
+    async: true,
+  },
+]
+
+function PipelineSection({ pageRef }: { pageRef: React.RefObject<HTMLDivElement | null> }) {
+  const [activeStep, setActiveStep] = useState(-1)
+  const [hoveredStep, setHoveredStep] = useState(-1)
+  const { theme } = useTheme()
+  const glowColor = theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
+
+  return (
+    <section className="w-full max-w-6xl mx-auto px-4 mt-16 md:mt-20 relative z-10">
+      <motion.h2
+        initial={{ opacity: 0, y: 12 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0, root: pageRef }}
+        transition={{ duration: 0.4 }}
+        className="text-sm font-medium text-center text-muted-foreground uppercase tracking-widest mb-12"
+      >
+        When you send a message
+      </motion.h2>
+
+      {/* Vertical layout: small + medium screens */}
+      <div className="flex flex-col gap-0 lg:hidden">
+        {PIPELINE_STEPS.map((step, i) => {
+          const isActive = activeStep >= i
+          const isHovered = hoveredStep === i
+          const isLast = i === PIPELINE_STEPS.length - 1
+
+          return (
+            <motion.div
+              key={step.title}
+              initial={{ opacity: 0, x: -16 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, amount: 0.3, root: pageRef }}
+              transition={{ duration: 0.35, ease: 'easeOut', delay: 0.08 * i }}
+              onViewportEnter={() => {
+                setTimeout(() => setActiveStep(prev => Math.max(prev, i)), 150 * i)
+              }}
+              onMouseEnter={() => setHoveredStep(i)}
+              onMouseLeave={() => setHoveredStep(-1)}
+              className="relative flex items-start gap-4 cursor-default"
+            >
+              <div className="flex flex-col items-center">
+                <motion.div
+                  animate={{
+                    scale: isHovered ? 1.1 : isActive ? 1 : 0.85,
+                    opacity: isActive ? 1 : 0.5,
+                    boxShadow: isHovered ? `0 0 20px ${glowColor}` : '0 0 0px transparent',
+                  }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-background transition-colors duration-300 ${
+                    isActive ? 'border-foreground/30 text-foreground' : 'border-border text-muted-foreground'
+                  }`}
+                >
+                  <step.icon className="h-4 w-4" />
+                </motion.div>
+                {!isLast && (
+                  <motion.div
+                    initial={{ scaleY: 0 }}
+                    animate={{ scaleY: activeStep >= i ? 1 : 0 }}
+                    transition={{ duration: 0.4, ease: 'easeOut', delay: 0.15 }}
+                    style={{ transformOrigin: 'top' } as CSSProperties}
+                    className="w-px flex-1 min-h-[2rem] bg-border"
+                  />
+                )}
+              </div>
+
+              <motion.div
+                animate={{ opacity: isActive ? 1 : 0.4 }}
+                transition={{ duration: 0.3 }}
+                className={`pt-1.5 min-w-0 ${isLast ? 'pb-0' : 'pb-8'}`}
+              >
+                <div className="flex items-center gap-2">
+                  <p className={`text-sm font-semibold transition-colors duration-300 ${
+                    isActive ? 'text-foreground' : 'text-muted-foreground'
+                  }`}>
+                    {step.title}
+                  </p>
+                  {'async' in step && step.async && (
+                    <span className="text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+                      async
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
+                  {step.short}
+                </p>
+                <AnimatePresence>
+                  {isHovered && (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginTop: 6 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeOut' }}
+                      className="text-xs text-foreground/70 leading-relaxed max-w-md overflow-hidden"
+                    >
+                      {step.detail}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            </motion.div>
+          )
+        })}
+      </div>
+
+      {/* Horizontal layout: large screens */}
+      <div className="hidden lg:block">
+        <div className="flex items-start">
+          {PIPELINE_STEPS.map((step, i) => {
+            const isActive = activeStep >= i
+            const isHovered = hoveredStep === i
+            const isLast = i === PIPELINE_STEPS.length - 1
+
+            return (
+              <div key={step.title} className="flex items-start flex-1 min-w-0">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  animate={{ opacity: isActive ? 1 : 0.4 }}
+                  viewport={{ once: true, amount: 0.3, root: pageRef }}
+                  transition={{ duration: 0.35, ease: 'easeOut', delay: 0.1 * i }}
+                  onViewportEnter={() => {
+                    setTimeout(() => setActiveStep(prev => Math.max(prev, i)), 150 * i)
+                  }}
+                  onMouseEnter={() => setHoveredStep(i)}
+                  onMouseLeave={() => setHoveredStep(-1)}
+                  className="flex flex-col items-center text-center cursor-default w-full"
+                >
+                  <motion.div
+                    animate={{
+                      scale: isHovered ? 1.15 : isActive ? 1 : 0.85,
+                      opacity: isActive ? 1 : 0.5,
+                      boxShadow: isHovered ? `0 0 24px ${glowColor}` : '0 0 0px transparent',
+                    }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border bg-background transition-colors duration-300 ${
+                      isActive ? 'border-foreground/30 text-foreground' : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    <step.icon className="h-4 w-4" />
+                  </motion.div>
+                  <div className="mt-3 px-1">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <p className={`text-xs font-semibold transition-colors duration-300 ${
+                        isActive ? 'text-foreground' : 'text-muted-foreground'
+                      }`}>
+                        {step.title}
+                      </p>
+                      {'async' in step && step.async && (
+                        <span className="text-[9px] uppercase tracking-wider font-medium px-1 py-px rounded-full bg-muted text-muted-foreground border border-border">
+                          async
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      {step.short}
+                    </p>
+                  </div>
+                </motion.div>
+
+                {!isLast && (
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: activeStep >= i ? 1 : 0 }}
+                    transition={{ duration: 0.4, ease: 'easeOut', delay: 0.15 }}
+                    style={{ transformOrigin: 'left' } as CSSProperties}
+                    className="h-px bg-border mt-5 flex-shrink-0 w-full max-w-[3rem]"
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {hoveredStep >= 0 && (
+            <motion.div
+              key={hoveredStep}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="mt-4 rounded-lg border border-border bg-muted/40 px-4 py-3"
+            >
+              <p className="text-xs text-foreground/70 leading-relaxed text-center">
+                {PIPELINE_STEPS[hoveredStep].detail}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </section>
+  )
+}
 
 export default function LandingPage() {
   const { user, refreshUser } = useAuth()
@@ -227,51 +460,7 @@ export default function LandingPage() {
           </div>
         </motion.div>
       </section>
-      <section className="w-full max-w-4xl mx-auto px-4 mt-16 md:mt-20 relative z-10">
-        <motion.h2
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0, root: pageRef }}
-          transition={{ duration: 0.4 }}
-          className="text-sm font-medium text-center text-muted-foreground uppercase tracking-widest mb-10"
-        >
-          When you send a message
-        </motion.h2>
-        <div className="flex flex-col sm:flex-row justify-center items-center gap-6 sm:gap-0">
-          {[
-            { icon: MessageSquare, label: "You send a message" },
-            { icon: Search, label: "Relevant memories are found" },
-            { icon: Reply, label: "AI responds with context" },
-            { icon: RefreshCw, label: "Memories updated in background" },
-          ].map((step, i) => (
-            <div key={step.label} className="flex sm:flex-row flex-col items-center">
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0, root: pageRef }}
-                transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 + i * 0.12 }}
-                className="flex flex-col items-center gap-2.5 w-[8rem]"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm">
-                  <step.icon className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-xs text-center text-muted-foreground leading-snug">{step.label}</p>
-              </motion.div>
-              {i < 3 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0, root: pageRef }}
-                  transition={{ duration: 0.35, ease: "easeOut", delay: 0.1 + i * 0.12 }}
-                  className="flex h-10 w-10 items-center justify-center shadow-sm px-2"
-                >
-                  <ArrowRightIcon className="w-4 h-4 text-muted-foreground" />
-                </motion.div>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
+      <PipelineSection pageRef={pageRef} />
       <section className="w-full max-w-7xl mx-auto px-4 mt-24 md:mt-32 mb-24 md:mb-32 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-[12rem_18rem] gap-2">
           <motion.div
