@@ -38,6 +38,8 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 
 
+
+
 # Dependency to get database session
 async def get_db() -> AsyncSession:
     """Dependency to get database session"""
