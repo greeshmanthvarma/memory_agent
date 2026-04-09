@@ -24,7 +24,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: uv sync --group dev
+        run: uv pip install -r requirements.txt pytest
 
       - name: Run tests
         working-directory: backend
