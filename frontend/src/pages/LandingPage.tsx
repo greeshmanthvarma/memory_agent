@@ -462,37 +462,38 @@ export default function LandingPage() {
       </section>
       <PipelineSection pageRef={pageRef} />
       <section className="w-full max-w-7xl mx-auto px-4 mt-24 md:mt-32 mb-24 md:mb-32 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-[12rem_18rem] gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-[12rem_18rem] gap-2 min-w-0">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0, root: pageRef }}
             transition={{ duration: 0.4, ease: 'easeOut', delay: 0.05 }}
-            className="w-full min-h-[18rem] md:row-span-2 md:min-w-[12rem] md:w-[24rem] md:min-h-0 flex flex-col items-center justify-center backdrop-blur-xl border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
+            className="w-full min-w-0 min-h-[26rem] md:row-span-2 md:min-w-[12rem] md:w-[24rem] md:min-h-0 flex flex-col items-center justify-center overflow-hidden backdrop-blur-xl border border-gray-200/30 dark:border-white/10 rounded-xl shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
             onMouseEnter={() => setIsChatHovered(true)}
             onMouseLeave={() => setIsChatHovered(false)}
           >
             <motion.div
               animate={{ opacity: isChatHovered ? 0.5 : 1, filter: isChatHovered ? 'blur(2px)' : 'blur(0px)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="w-full min-w-0 px-3"
             >
-              <p className="text-2xl font-bold text-center line-clamp-2 mb-2 mt-6">Chat with context</p>
-              <p className="text-sm text-muted-foreground text-center mb-4 px-4">The AI uses your memories to personalize responses.</p>
+              <p className="text-xl sm:text-2xl font-bold text-center line-clamp-2 mb-2 mt-6 break-words">Chat with context</p>
+              <p className="text-sm text-muted-foreground text-center mb-4 px-1 break-words">The AI uses your memories to personalize responses.</p>
             </motion.div>
-            <div className="flex-1 w-full mt-10 flex flex-col gap-4">
-              <motion.div className="flex justify-end w-full" animate={{ y: isChatHovered ? -8 : 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
-                <div className="bg-primary/10 text-foreground px-4 py-2 mr-2 rounded-full w-fit">
-                  <p className="text-sm">What should I do this weekend?</p>
+            <div className="flex-1 w-full min-w-0 mt-6 sm:mt-10 flex flex-col gap-4 px-2 pb-4">
+              <motion.div className="flex justify-end w-full min-w-0" animate={{ y: isChatHovered ? -8 : 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
+                <div className="bg-primary/10 text-foreground px-3 sm:px-4 py-2 mr-1 sm:mr-2 rounded-full max-w-full">
+                  <p className="text-sm break-words">What should I do this weekend?</p>
                 </div>
               </motion.div>
               <motion.div
                 initial="hidden"
                 animate={isChatHovered ? "show" : "hidden"}
                 variants={responseContainer}
-                className="flex flex-wrap justify-start w-full ml-4 max-w-[85%] gap-y-0.5"
+                className="flex flex-wrap justify-start w-full min-w-0 max-w-full ml-2 sm:ml-4 pr-2 gap-y-0.5"
               >
                 {responseText.split(' ').map((word, index) => (
-                  <motion.span key={index} className="text-sm" variants={responseItem} style={{ marginRight: '0.25em' }}>{word}</motion.span>
+                  <motion.span key={index} className="text-sm break-words" variants={responseItem} style={{ marginRight: '0.25em' }}>{word}</motion.span>
                 ))}
               </motion.div>
             </div>
@@ -573,19 +574,19 @@ export default function LandingPage() {
             transition={{ duration: 0.4, ease: 'easeOut', delay: 0.21 }}
             onMouseEnter={() => setIsReflectionHovered(true)}
             onMouseLeave={() => setIsReflectionHovered(false)}
-            className="relative flex flex-col items-center justify-center min-h-[14rem] md:min-h-0 md:col-span-2 md:col-start-2 md:row-start-2 border border-gray-200/30 dark:border-white/10 rounded-xl overflow-hidden p-5 gap-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
+            className="relative flex flex-col items-center justify-center min-h-[22rem] md:min-h-0 min-w-0 md:col-span-2 md:col-start-2 md:row-start-2 border border-gray-200/30 dark:border-white/10 rounded-xl overflow-hidden p-4 sm:p-5 gap-2 shadow-[0_1px_1px_rgba(0,0,0,0.05),0_4px_6px_rgba(34,42,53,0.04),0_24px_68px_rgba(47,48,55,0.05),0_2px_3px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_1px_rgba(255,255,255,0.04),0_4px_6px_rgba(230,230,230,0.03),0_24px_68px_rgba(220,220,220,0.04),0_2px_3px_rgba(255,255,255,0.03)]"
           >
             <motion.p
               animate={{ opacity: isReflectionHovered ? 0.2 : 1, filter: isReflectionHovered ? 'blur(2px)' : 'blur(0px)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="text-2xl font-bold text-center"
+              className="text-xl sm:text-2xl font-bold text-center px-1 break-words max-w-full"
             >
               Memories evolve automatically
             </motion.p>
             <motion.p
               animate={{ opacity: isReflectionHovered ? 0.2 : 1, filter: isReflectionHovered ? 'blur(2px)' : 'blur(0px)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="text-sm text-muted-foreground text-center"
+              className="text-sm text-muted-foreground text-center px-1 break-words max-w-full"
             >
               After every response, a reflection model creates, updates, or merges memories in the background.
             </motion.p>
@@ -593,7 +594,7 @@ export default function LandingPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: isReflectionHovered ? 1 : 0, filter: isReflectionHovered ? 'blur(0px)' : 'blur(4px)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="absolute inset-0 flex items-stretch justify-center gap-3 px-5 py-5 pointer-events-none"
+              className="absolute inset-0 flex flex-col md:flex-row items-stretch justify-center gap-2 sm:gap-3 px-3 py-4 sm:px-5 sm:py-5 pointer-events-none overflow-y-auto overflow-x-hidden"
             >
               {MUTATION_CARDS.map((item, i) => (
                 <motion.div
@@ -601,25 +602,25 @@ export default function LandingPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: isReflectionHovered ? 1 : 0, y: isReflectionHovered ? 0 : 8 }}
                   transition={{ duration: 0.3, ease: 'easeOut', delay: isReflectionHovered ? 0.05 + i * 0.07 : 0 }}
-                  className="flex flex-col gap-2 flex-1 rounded-lg border border-border bg-muted/30 px-3 py-2.5"
+                  className="flex flex-col gap-2 min-w-0 w-full md:flex-1 md:min-h-0 rounded-lg border border-border bg-muted/30 px-2.5 sm:px-3 py-2.5"
                 >
-                  <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">{item.label}</span>
-                  <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground break-words">{item.label}</span>
+                  <div className="flex flex-col gap-1 min-w-0">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{item.label === 'Created' ? 'Message' : 'Before'}</p>
                     {Array.isArray(item.before) ? (
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-0.5 min-w-0">
                         {(item.before as string[]).map((b, j) => (
-                          <p key={j} className="text-xs text-muted-foreground line-through leading-relaxed">{b}</p>
+                          <p key={j} className="text-xs text-muted-foreground line-through leading-relaxed break-words">{b}</p>
                         ))}
                       </div>
                     ) : (
-                      <p className={`text-xs leading-relaxed ${item.label === 'Created' ? 'text-muted-foreground italic' : 'text-muted-foreground line-through'}`}>{item.before as string}</p>
+                      <p className={`text-xs leading-relaxed break-words ${item.label === 'Created' ? 'text-muted-foreground italic' : 'text-muted-foreground line-through'}`}>{item.before as string}</p>
                     )}
                   </div>
-                  <div className="w-full h-px bg-border/50" />
-                  <div className="flex flex-col gap-1">
+                  <div className="w-full h-px bg-border/50 shrink-0" />
+                  <div className="flex flex-col gap-1 min-w-0">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-widest">After</p>
-                    <p className="text-xs text-foreground leading-relaxed">{item.after}</p>
+                    <p className="text-xs text-foreground leading-relaxed break-words">{item.after}</p>
                   </div>
                 </motion.div>
               ))}
