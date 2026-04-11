@@ -594,7 +594,7 @@ export default function LandingPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: isReflectionHovered ? 1 : 0, filter: isReflectionHovered ? 'blur(0px)' : 'blur(4px)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="absolute inset-0 flex flex-col md:flex-row items-stretch justify-center gap-2 sm:gap-3 px-3 py-4 sm:px-5 sm:py-5 pointer-events-none overflow-y-auto overflow-x-hidden"
+              className="absolute inset-0 grid grid-cols-3 items-stretch gap-1.5 sm:gap-3 px-2 py-3 sm:px-5 sm:py-5 pointer-events-none overflow-y-auto overflow-x-hidden"
             >
               {MUTATION_CARDS.map((item, i) => (
                 <motion.div
@@ -602,25 +602,25 @@ export default function LandingPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: isReflectionHovered ? 1 : 0, y: isReflectionHovered ? 0 : 8 }}
                   transition={{ duration: 0.3, ease: 'easeOut', delay: isReflectionHovered ? 0.05 + i * 0.07 : 0 }}
-                  className="flex flex-col gap-2 min-w-0 w-full md:flex-1 md:min-h-0 rounded-lg border border-border bg-muted/30 px-2.5 sm:px-3 py-2.5"
+                  className="flex min-h-0 min-w-0 flex-col gap-1.5 sm:gap-2 rounded-lg border border-border bg-muted/30 px-1.5 py-2 sm:px-3 sm:py-2.5"
                 >
-                  <span className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground break-words">{item.label}</span>
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{item.label === 'Created' ? 'Message' : 'Before'}</p>
+                  <span className="text-[9px] sm:text-[10px] uppercase tracking-wider sm:tracking-widest font-semibold text-muted-foreground break-words">{item.label}</span>
+                  <div className="flex flex-col gap-0.5 sm:gap-1 min-w-0">
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider sm:tracking-widest">{item.label === 'Created' ? 'Message' : 'Before'}</p>
                     {Array.isArray(item.before) ? (
                       <div className="flex flex-col gap-0.5 min-w-0">
                         {(item.before as string[]).map((b, j) => (
-                          <p key={j} className="text-xs text-muted-foreground line-through leading-relaxed break-words">{b}</p>
+                          <p key={j} className="text-[10px] sm:text-xs text-muted-foreground line-through leading-snug sm:leading-relaxed break-words">{b}</p>
                         ))}
                       </div>
                     ) : (
-                      <p className={`text-xs leading-relaxed break-words ${item.label === 'Created' ? 'text-muted-foreground italic' : 'text-muted-foreground line-through'}`}>{item.before as string}</p>
+                      <p className={`text-[10px] sm:text-xs leading-snug sm:leading-relaxed break-words ${item.label === 'Created' ? 'text-muted-foreground italic' : 'text-muted-foreground line-through'}`}>{item.before as string}</p>
                     )}
                   </div>
                   <div className="w-full h-px bg-border/50 shrink-0" />
                   <div className="flex flex-col gap-1 min-w-0">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">After</p>
-                    <p className="text-xs text-foreground leading-relaxed break-words">{item.after}</p>
+                    <p className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider sm:tracking-widest">After</p>
+                    <p className="text-[10px] sm:text-xs text-foreground leading-snug sm:leading-relaxed break-words">{item.after}</p>
                   </div>
                 </motion.div>
               ))}
