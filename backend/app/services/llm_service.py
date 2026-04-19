@@ -29,6 +29,42 @@ from app.database import AsyncSessionLocal
 load_dotenv()
 
 MUTATION_WORKER_POLL_SECONDS = 2.0
+MUTATION_WORKER_IDLE_EXIT_SECONDS = 120.0
+_mutation_worker_task: asyncio.Task | None = None
+_mutation_worker_lock = asyncio.Lock()
+
+
+async def ensure_mutation_worker_running() -> None:
+    """Start mutation worker lazily, only when needed."""
+    global _mutation_worker_task
+    async with _mutation_worker_lock:
+        if _mutation_worker_task and not _mutation_worker_task.done():
+            return
+        _mutation_worker_task = asyncio.create_task(run_mutation_worker())
+        print("[mutation worker] Spawned on demand", flush=True)
+
+
+async def stop_mutation_worker() -> None:
+    """Stop mutation worker gracefully on app shutdown."""
+    global _mutation_worker_task
+    async with _mutation_worker_lock:
+        task = _mutation_worker_task
+        _mutation_worker_task = None
+    if not task:
+        return
+    if task.done():
+        try:
+            await task
+        except Exception:
+            pass
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        print(f"[mutation worker] stop failed: {e}", flush=True)
 
 async def enqueue_memory_action(
     db: AsyncSession, reflection_output: ReflectionOutput, user_id: int, collection_name: str
@@ -43,21 +79,28 @@ async def enqueue_memory_action(
     payload = reflection_output.model_dump()
     job_id = await db_enqueue_memory_mutation(user_id, collection_name, payload, db)
     print(f"[reflection] Enqueued mutation job_id={job_id} user_id={user_id} collection={collection_name} action={reflection_output.action}", flush=True)
+    await ensure_mutation_worker_running()
 
 
 async def run_mutation_worker() -> None:
     """
-    Long-running worker that claims and processes rows from memory_mutation_queue.
-    Start once on app startup (e.g. asyncio.create_task(run_mutation_worker())).
+    Worker that claims and processes rows from memory_mutation_queue.
+    It exits after being idle for MUTATION_WORKER_IDLE_EXIT_SECONDS.
     """
     print("[mutation worker] Starting loop", flush=True)
+    idle_elapsed = 0.0
     while True:
         try:
             async with AsyncSessionLocal() as session:
                 job = await db_claim_next_mutation_job(session)
             if job is None:
+                idle_elapsed += MUTATION_WORKER_POLL_SECONDS
+                if idle_elapsed >= MUTATION_WORKER_IDLE_EXIT_SECONDS:
+                    print("[mutation worker] Idle timeout reached, stopping", flush=True)
+                    break
                 await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
                 continue
+            idle_elapsed = 0.0
             try:
                 print(f"[mutation worker] Claimed job_id={job.id} user_id={job.user_id} collection={job.collection_name} status={job.status}", flush=True)
                 output = ReflectionOutput.model_validate(job.payload)
@@ -90,6 +133,7 @@ async def run_mutation_worker() -> None:
         except Exception as e:
             print(f"[mutation worker] loop error: {e}", flush=True)
             await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
+    print("[mutation worker] Loop exited", flush=True)
 
 logger = logging.getLogger(__name__)
 
