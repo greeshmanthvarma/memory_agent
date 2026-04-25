@@ -2,7 +2,7 @@ from app.db_models import MemoryModel, MessageModel, UserModel, ConversationMode
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_
 from sqlalchemy.sql import func
 
 async def db_create_memory(memory: MemoryModel,db: AsyncSession):
@@ -56,6 +56,47 @@ async def db_get_memory_by_id(memory_id: int,user_id: int,db: AsyncSession):
         raise
     except Exception as e:
         raise Exception(f"Error getting memory by id {memory_id}: {e}")
+
+
+async def db_get_memory_history(memory_id: int, user_id: int, db: AsyncSession):
+    """
+    Return all memory versions connected through superseded_by_id for a given memory.
+    Includes both older and newer linked versions; sorted oldest -> newest.
+    """
+    try:
+        seed = await db_get_memory_by_id(memory_id, user_id, db)
+        seen_ids = {seed.id}
+        collected = {seed.id: seed}
+        frontier_ids = {seed.id}
+
+        while frontier_ids:
+            result = await db.execute(
+                select(MemoryModel).where(
+                    MemoryModel.user_id == user_id,
+                    or_(
+                        MemoryModel.id.in_(frontier_ids),
+                        MemoryModel.superseded_by_id.in_(frontier_ids),
+                    ),
+                )
+            )
+            rows = result.scalars().all()
+            next_frontier = set()
+            for row in rows:
+                if row.id not in collected:
+                    collected[row.id] = row
+                if row.id not in seen_ids:
+                    seen_ids.add(row.id)
+                    next_frontier.add(row.id)
+                if row.superseded_by_id and row.superseded_by_id not in seen_ids:
+                    seen_ids.add(row.superseded_by_id)
+                    next_frontier.add(row.superseded_by_id)
+            frontier_ids = next_frontier
+
+        return sorted(collected.values(), key=lambda m: (m.created_at, m.id))
+    except ValueError:
+        raise
+    except Exception as e:
+        raise Exception(f"Error getting memory history for id {memory_id}: {e}")
 
 async def db_update_memory(memory_id: int, user_id: int, db: AsyncSession, **updates):
     try:

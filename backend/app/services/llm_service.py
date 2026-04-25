@@ -29,6 +29,7 @@ from app.database import AsyncSessionLocal
 load_dotenv()
 
 MUTATION_WORKER_POLL_SECONDS = 2.0
+# Auto-stop worker after this much idle queue time.
 MUTATION_WORKER_IDLE_EXIT_SECONDS = 120.0
 _mutation_worker_task: asyncio.Task | None = None
 _mutation_worker_lock = asyncio.Lock()
@@ -38,8 +39,10 @@ async def ensure_mutation_worker_running() -> None:
     """Start mutation worker lazily, only when needed."""
     global _mutation_worker_task
     async with _mutation_worker_lock:
+        # A worker is already active; do not create duplicates.
         if _mutation_worker_task and not _mutation_worker_task.done():
             return
+        # Loop starts here (or restarts after prior idle exit).
         _mutation_worker_task = asyncio.create_task(run_mutation_worker())
         print("[mutation worker] Spawned on demand", flush=True)
 
@@ -94,12 +97,16 @@ async def run_mutation_worker() -> None:
             async with AsyncSessionLocal() as session:
                 job = await db_claim_next_mutation_job(session)
             if job is None:
+                # Empty queue: keep short polling while within idle window.
                 idle_elapsed += MUTATION_WORKER_POLL_SECONDS
                 if idle_elapsed >= MUTATION_WORKER_IDLE_EXIT_SECONDS:
+                    # No work for long enough, so exit completely.
+                    # Next enqueue will call ensure_mutation_worker_running().
                     print("[mutation worker] Idle timeout reached, stopping", flush=True)
                     break
                 await asyncio.sleep(MUTATION_WORKER_POLL_SECONDS)
                 continue
+            # Work found: reset idle timer and continue processing.
             idle_elapsed = 0.0
             try:
                 print(f"[mutation worker] Claimed job_id={job.id} user_id={job.user_id} collection={job.collection_name} status={job.status}", flush=True)

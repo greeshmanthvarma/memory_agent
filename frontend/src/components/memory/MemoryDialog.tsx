@@ -29,9 +29,15 @@ export default function MemoryDialog({ open, onOpenChange, memory, fetchMemories
   const [summaryLong, setSummaryLong] = useState(memory?.summary_long ?? '')
   const [memoryContent, setMemoryContent] = useState(memory?.content ?? '')
   const [deleteMemoryOpen, setDeleteMemoryOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [previousVersions, setPreviousVersions] = useState<Memory[]>([])
 
   useEffect(() => {
     setIsEditing(false)
+    setHistoryOpen(false)
+    setHistoryLoading(false)
+    setPreviousVersions([])
     if (memory) {
       setSummaryLong(memory.summary_long ?? '')
       setMemoryContent(memory.content ?? '')
@@ -70,6 +76,27 @@ export default function MemoryDialog({ open, onOpenChange, memory, fetchMemories
       onOpenChange(false)
     } catch {
       toast.error('Failed to delete memory')
+    }
+  }
+
+  async function handleViewPreviousVersions() {
+    if (!memory) return
+    if (historyOpen) {
+      setHistoryOpen(false)
+      return
+    }
+    setHistoryLoading(true)
+    try {
+      const response = await fetch(`/api/memory/${memory.id}/history`, { credentials: 'include' })
+      if (!response.ok) throw new Error('Failed to load memory history')
+      const versions: Memory[] = await response.json()
+      const previous = versions.filter((version) => version.id !== memory.id)
+      setPreviousVersions(previous)
+      setHistoryOpen(true)
+    } catch {
+      toast.error('Failed to load previous versions')
+    } finally {
+      setHistoryLoading(false)
     }
   }
 
@@ -128,6 +155,14 @@ export default function MemoryDialog({ open, onOpenChange, memory, fetchMemories
               )
             )}
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={handleViewPreviousVersions}
+                disabled={historyLoading}
+              >
+                {historyLoading ? 'Loading…' : historyOpen ? 'Hide previous versions' : 'View previous versions'}
+              </Button>
               {!isEditing ? (
                 <Button className="cursor-pointer" onClick={() => setIsEditing(true)}>Edit</Button>
               ) : (
@@ -136,6 +171,22 @@ export default function MemoryDialog({ open, onOpenChange, memory, fetchMemories
               <Button variant="destructive" className="cursor-pointer" onClick={() => setDeleteMemoryOpen(true)}>Delete</Button>
             </div>
           </div>
+          {historyOpen && (
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Previous Versions</h4>
+              {previousVersions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No previous versions found for this memory.</p>
+              ) : (
+                <ol className="list-decimal list-inside space-y-2">
+                  {previousVersions.map((version) => (
+                    <li key={version.id} className="text-sm leading-relaxed">
+                      {version.content}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
         </div>
       </GlassDialogContent>
       <AlertDialogDestructive open={deleteMemoryOpen} onOpenChange={setDeleteMemoryOpen} onDelete={handleDelete} itemId={memory.id} isDeleting={false} itemType="memory" />

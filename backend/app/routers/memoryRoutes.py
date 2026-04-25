@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.memory_service import create_memory as create_memory_service
 from app.services.embedding_service import embed_text
-from app.services.db_service import db_get_all_memories as db_get_all_memories_service, db_get_memory_by_id as db_get_memory_by_id_service
+from app.services.db_service import db_get_all_memories as db_get_all_memories_service, db_get_memory_by_id as db_get_memory_by_id_service, db_get_memory_history as db_get_memory_history_service
 from app.services.memory_service import db_memory_to_memory, get_memory_by_query as get_memory_by_query_service, update_memory as update_memory_service, delete_memory as delete_memory_service
 from typing import List
 from app.db_models import UserModel, MemoryMutationQueueModel
@@ -99,6 +99,21 @@ async def get_mutation_queue(
             created_at=row.created_at,
             finished_at=row.finished_at,
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@memory_router.get("/{memory_id}/history")
+async def get_memory_history(
+    memory_id: int,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> List[Memory]:
+    try:
+        versions = await db_get_memory_history_service(memory_id, user.id, db)
+        return [db_memory_to_memory(memory) for memory in versions]
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
