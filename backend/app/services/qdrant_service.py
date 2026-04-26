@@ -284,6 +284,17 @@ def delete_points(collection_name: str, ids: list[uuid.UUID]):
     except Exception as e:
         raise Exception(f"Error deleting points: {e}")
 
+def set_memory_superseded_flag(collection_name: str, ids: list[uuid.UUID], is_superseded: bool):
+    try:
+        if not ids:
+            return
+        qdrant_client.set_payload(
+            collection_name=collection_name,
+            payload={"is_superseded": is_superseded},
+            points=ids,
+        )
+    except Exception as e:
+        raise Exception(f"Error setting memory superseded flag: {e}")
 
 def backfill_is_superseded(collection_name: str, batch_size: int = 100) -> int:
     """Set is_superseded=False for points that don't have it. Run once per collection after adding the field. Returns number of points updated."""

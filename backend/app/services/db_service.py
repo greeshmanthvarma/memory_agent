@@ -297,3 +297,13 @@ async def db_mark_mutation_failed(job_id: int, error_message: str, db: AsyncSess
     )
     await db.commit()
     print(f"[mutation queue] mark_failed job_id={job_id} error={error_message}", flush=True)
+
+
+async def db_mark_mutation_discarded(job_id: int, db: AsyncSession) -> None:
+    await db.execute(
+        update(MemoryMutationQueueModel)
+        .where(MemoryMutationQueueModel.id == job_id)
+        .values(status="discarded", finished_at=func.now(), error_message=None)
+    )
+    await db.commit()
+    print(f"[mutation queue] mark_discarded job_id={job_id}", flush=True)

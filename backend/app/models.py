@@ -109,6 +109,6 @@ class TitleFromMessageRequest(BaseModel):
 class MemoryMutationQueue(BaseModel):
     id: int
     payload: ReflectionOutput
-    status: Literal["pending", "processing", "done", "failed"]
+    status: Literal["pending", "processing", "done", "failed", "discarded"]
     created_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
