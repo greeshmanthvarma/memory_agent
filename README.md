@@ -10,7 +10,7 @@ Coherence is a personal memory agent that uses a LangGraph-powered chat pipeline
 [![Qdrant](https://img.shields.io/badge/Qdrant-vector%20DB-7C3AED)](https://qdrant.tech/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o%20mini-412991?logo=openai)](https://openai.com/)
 
-**[Live demo](https://coherence-agent.vercel.app)** 
+**[Project site (UI showcase)](https://coherence-agent.vercel.app)** — _Interactive demo currently offline; run locally for full functionality._
 
 ## Features
 
@@ -122,8 +122,8 @@ For local development, sparse embeddings fall back to the local FastEmbed SPLADE
 
 ## Deployment
 
-- Frontend deployed on Vercel (SPA + serverless API proxy)
-- Backend deployed on AWS Elastic Beanstalk
+- Frontend deployed on Vercel (SPA + serverless API proxy) — [project site](https://coherence-agent.vercel.app) serves the UI showcase
+- Backend was deployed on AWS Elastic Beanstalk (currently offline)
 - PostgreSQL hosted on Neon (TLS, asyncpg)
 - Qdrant Cloud for vector search
 
@@ -160,7 +160,7 @@ CORS_ORIGINS=http://localhost:5173
 - **Neon (or any URL with query params)**: The app strips the query string from `DATABASE_URL` and sets `ssl=True` in `connect_args` so asyncpg does not receive unsupported params (e.g. `channel_binding`).
 - **Qdrant**: Payload indexes on `user_id` (integer) and `is_superseded` (bool) are created idempotently on collection creation and before filtered search so they work on Qdrant Cloud.
 
-**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. The live demo is hosted on Vercel and proxies API requests to the backend (no backend URL in the repo).
+**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. The Vercel deployment hosts the UI showcase; API requests are proxied to the backend when it is running (no backend URL in the repo).
 
 ## Installation
 
@@ -207,7 +207,7 @@ npm run dev
 
 4. Open http://localhost:5173
 
-To try the app without running it locally, use the [live demo](https://coherence-agent.vercel.app) above.
+To browse the UI without running locally, visit the [project site](https://coherence-agent.vercel.app) above. For the full interactive experience, follow the setup steps in this README.
 
 ## API Overview
 

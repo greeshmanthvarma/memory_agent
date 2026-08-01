@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { motion, AnimatePresence } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
-import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, BrainCog, ScanSearch, Sparkles } from "lucide-react"
+import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, BrainCog, ScanSearch, Sparkles, Info } from "lucide-react"
+
+const DEMO_OFFLINE = true
 import MemoryBubble from '@/components/memory/MemoryBubble'
 import AnimatedPulse from '@/components/animatedPulse'
 import type { Memory } from '@/types'
@@ -369,6 +371,14 @@ export default function LandingPage() {
 
   return (
     <div ref={pageRef} className="min-h-svh w-full bg-background relative flex flex-col overflow-y-auto">
+      {DEMO_OFFLINE && (
+        <div className="fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm text-center bg-amber-500/10 dark:bg-amber-500/15 border-b border-amber-500/20 backdrop-blur-md text-amber-950 dark:text-amber-100">
+          <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span>
+            Backend offline. This page is a UI showcase only.
+          </span>
+        </div>
+      )}
       <div className="fixed size-full inset-0 z-0 pointer-events-none">
         <AnimatedPulse theme={theme} />
       </div>
@@ -391,7 +401,7 @@ export default function LandingPage() {
           ))}
         </motion.div>
         <motion.div
-          className="absolute top-3 sm:top-4 w-full flex justify-between items-center gap-1 px-2 sm:px-4 min-w-0"
+          className={`absolute w-full flex justify-between items-center gap-1 px-2 sm:px-4 min-w-0 ${DEMO_OFFLINE ? 'top-12 sm:top-12' : 'top-3 sm:top-4'}`}
           initial={{ opacity: 0, filter: 'blur(10px)' }}
           animate={{ opacity: 1, filter: 'blur(0px)' }}
           transition={{ duration: 0.3, ease: 'easeInOut', delay: 0.5 }}
@@ -401,12 +411,16 @@ export default function LandingPage() {
             <p className="text-xl sm:text-2xl font-bold text-neutral-700 dark:text-white truncate">Coherence</p>
           </div>
           <div className="flex shrink-0 items-center justify-center gap-1 sm:gap-2 pl-1">
-            <Link to="/register">
-              <Button size="sm" className="cursor-pointer text-xs sm:text-sm h-7 sm:h-9 px-1.5 sm:px-4">Get started</Button>
-            </Link>
-            <Link to="/login">
-              <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">Sign in</Button>
-            </Link>
+            {!DEMO_OFFLINE && (
+              <>
+                <Link to="/register">
+                  <Button size="sm" className="cursor-pointer text-xs sm:text-sm h-7 sm:h-9 px-1.5 sm:px-4">Get started</Button>
+                </Link>
+                <Link to="/login">
+                  <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-4">Sign in</Button>
+                </Link>
+              </>
+            )}
             <a href="https://github.com/greeshmanthvarma/memory_agent" target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="outline" className="cursor-pointer text-xs sm:text-sm h-7 sm:h-9 px-1.5 sm:px-4">
                 <span className="sm:hidden">Git</span>
@@ -447,16 +461,18 @@ export default function LandingPage() {
             <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-2xl text-center mx-auto leading-snug tracking-tight">
               Persistent memory powered by semantic search and intelligent recall.
             </p>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="lg" variant="outline" className="mt-3 sm:mt-4 cursor-pointer text-sm sm:text-base" onClick={handleTryDemo} disabled={isDemoLoading}>
-                  {isDemoLoading ? 'Loading...' : 'Try demo'}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="text-xs text-muted-foreground">If it doesn&apos;t load, try again. The database may be waking up.</p>
-              </TooltipContent>
-            </Tooltip>
+            {!DEMO_OFFLINE && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="lg" variant="outline" className="mt-3 sm:mt-4 cursor-pointer text-sm sm:text-base" onClick={handleTryDemo} disabled={isDemoLoading}>
+                    {isDemoLoading ? 'Loading...' : 'Try demo'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs text-muted-foreground">If it doesn&apos;t load, try again. The database may be waking up.</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </motion.div>
       </section>
