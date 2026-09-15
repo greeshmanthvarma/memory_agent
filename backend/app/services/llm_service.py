@@ -176,12 +176,14 @@ def _log_state(node_name: str, state: GraphState, config: RunnableConfig | None 
         print(f"[graph state] failed to log state at {node_name}: {e}", flush=True)
 
 
+LLM_MODEL = "gpt-5.6-luna"
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-query_analysis_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
-contradiction_detection_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
-reflection_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
-consolidation_model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
+chat_model = ChatOpenAI(model=LLM_MODEL, reasoning_effort="low")
+query_analysis_model = ChatOpenAI(model=LLM_MODEL, reasoning_effort="low", use_responses_api=True)
+contradiction_detection_model = ChatOpenAI(model=LLM_MODEL, reasoning_effort="low", use_responses_api=True)
+reflection_model = ChatOpenAI(model=LLM_MODEL, reasoning_effort="low", use_responses_api=True)
+consolidation_model = ChatOpenAI(model=LLM_MODEL, reasoning_effort="low", use_responses_api=True)
 
 
 QUERY_ANALYSIS_SYSTEM_PROMPT = """
@@ -481,7 +483,8 @@ def summarize_conversation(messages: List[Message]) -> dict:
 
 
         response = client.responses.create(
-            model="gpt-4o-mini",
+            model=LLM_MODEL,
+            reasoning={"effort": "low"},
             input=[
                 {
                 "role":"developer",
@@ -499,7 +502,8 @@ def summarize_conversation(messages: List[Message]) -> dict:
 def get_title(first_message: str) -> str:
     try:
         response = client.responses.create(
-            model="gpt-4o-mini",
+            model=LLM_MODEL,
+            reasoning={"effort": "low"},
             input=[
                 {
                     "role" : "developer",
@@ -945,7 +949,7 @@ def compact_conversation(messages: List[Message]) -> List[Dict]:
     try:
         formatted_messages = _format_messages(messages)
         compacted_response = client.responses.compact(
-            model="gpt-4o-mini",
+            model=LLM_MODEL,
             input=formatted_messages
         )
         return compacted_response.output

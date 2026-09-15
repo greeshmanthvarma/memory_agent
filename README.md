@@ -8,7 +8,7 @@ Coherence is a personal memory agent that uses a LangGraph-powered chat pipeline
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-316192?logo=postgresql)](https://www.postgresql.org/)
 [![Qdrant](https://img.shields.io/badge/Qdrant-vector%20DB-7C3AED)](https://qdrant.tech/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o%20mini-412991?logo=openai)](https://openai.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--5.6%20Luna-412991?logo=openai)](https://openai.com/)
 
 **[Project site](https://coherence-agent.vercel.app)** — hosted frontend on Vercel, API proxied to the Railway backend.
 
@@ -30,7 +30,7 @@ Coherence is a personal memory agent that uses a LangGraph-powered chat pipeline
 - FastAPI
 - PostgreSQL (SQLAlchemy async)
 - Qdrant (vector database — dense + sparse vectors, payload filters, `cloud_inference=True`)
-- OpenAI (GPT-4o mini for chat/analysis/reflection, `text-embedding-3-small` for **dense** embeddings)
+- OpenAI (GPT-5.6 Luna for chat/analysis/reflection, `text-embedding-3-small` for **dense** embeddings)
 - LangGraph (chat + retrieval + retry + reflection graph)
 - **Sparse embeddings** – `qdrant/bm25` via Qdrant Cloud inference (free tier); local FastEmbed SPLADE (`prithivida/Splade_PP_en_v1`) available for local dev, disabled in prod via `DISABLE_LOCAL_SPLADE=true`
 - **Cross-encoder reranker** – Jina AI `jina-reranker-v1-base-en` (REST API)

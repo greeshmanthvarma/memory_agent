@@ -157,6 +157,9 @@ def get_point_vectors(collection_name: str, point_id: uuid.UUID) -> tuple[list[f
 
 def search_points(collection_name: str, query: str, dense_query_vector: list[float], limit: int = 10, user_id: int = None):
     try:
+        if not qdrant_client.collection_exists(collection_name=collection_name):
+            create_collection(name=collection_name)
+            return []
         must_conditions = []
         if user_id is not None:
             must_conditions.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))

@@ -69,7 +69,7 @@ const PIPELINE_STEPS = [
     icon: BrainCog,
     title: 'Query analysis',
     short: 'Intent is classified and a retrieval query is formed.',
-    detail: 'GPT-4o mini classifies intent as personal, ambiguous, or general knowledge and produces a retrieval query via structured output. General-knowledge messages skip straight to response.',
+    detail: 'GPT-5.6 Luna classifies intent as personal, ambiguous, or general knowledge and produces a retrieval query via structured output. General-knowledge messages skip straight to response.',
   },
   {
     icon: Search,
