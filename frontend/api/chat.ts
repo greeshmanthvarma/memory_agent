@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const base = backendUrl.replace(/\/$/, '')
-  const targetUrl = `${base}/api/chat`
+  const targetUrl = `${base}/api/chat/`
 
   const headers: Record<string, string> = {
     'Content-Type': (req.headers['content-type'] as string) || 'application/json',
@@ -39,12 +39,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 55000)
 
-    const response = await fetch(targetUrl, {
+    const fetchInit: RequestInit = {
       method: 'POST',
       headers,
       body,
+      redirect: 'manual',
       signal: controller.signal,
-    })
+    }
+
+    let response = await fetch(targetUrl, fetchInit)
+
+    const redirectStatus = response.status
+    if (redirectStatus >= 300 && redirectStatus < 400) {
+      const location = response.headers.get('location')
+      if (location) {
+        response = await fetch(new URL(location, targetUrl).toString(), fetchInit)
+      }
+    }
 
     clearTimeout(timeoutId)
 

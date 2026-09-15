@@ -28,6 +28,7 @@ chat_router = APIRouter(
     tags=["chat"],
 )
 
+@chat_router.post("")
 @chat_router.post("/")
 async def chat(request: ChatRequest, user: UserModel = Depends(get_current_user), db: AsyncSession = Depends(get_db),graph = Depends(get_compiled_graph)):
     try:

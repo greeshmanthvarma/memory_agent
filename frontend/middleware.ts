@@ -7,8 +7,8 @@ export default async function middleware(request: Request): Promise<Response | v
   const pathname = url.pathname
   const method = request.method
 
-  if (method === 'POST' && pathname === '/api/chat') return
-  if (method === 'GET' && pathname === '/api/memory') return
+  if (method === 'POST' && (pathname === '/api/chat' || pathname === '/api/chat/')) return
+  if (method === 'GET' && (pathname === '/api/memory' || pathname === '/api/memory/')) return
 
   const backendUrl = process.env.BACKEND_URL
   if (!backendUrl) {

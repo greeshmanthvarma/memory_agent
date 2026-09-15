@@ -19,7 +19,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const base = backendUrl.replace(/\/$/, '')
   const reqUrl = req.url ?? ''
-  const targetUrl = `${base}/api/memory${reqUrl.includes('?') ? reqUrl.slice(reqUrl.indexOf('?')) : ''}`
+  const query = reqUrl.includes('?') ? reqUrl.slice(reqUrl.indexOf('?')) : ''
+  // Trailing slash matches the FastAPI route so Node fetch does not follow a
+  // 307 and drop the Cookie header.
+  const targetUrl = `${base}/api/memory/${query}`
 
   const headers: Record<string, string> = { Host: new URL(backendUrl).host }
   if (req.headers.cookie) headers['Cookie'] = req.headers.cookie as string
@@ -28,11 +31,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 55000)
 
-    const response = await fetch(targetUrl, {
+    let response = await fetch(targetUrl, {
       method: 'GET',
       headers,
+      redirect: 'manual',
       signal: controller.signal,
     })
+
+    const redirectStatus = response.status
+    if (redirectStatus >= 300 && redirectStatus < 400) {
+      const location = response.headers.get('location')
+      if (location) {
+        response = await fetch(new URL(location, targetUrl).toString(), {
+          method: 'GET',
+          headers,
+          redirect: 'manual',
+          signal: controller.signal,
+        })
+      }
+    }
 
     clearTimeout(timeoutId)
 

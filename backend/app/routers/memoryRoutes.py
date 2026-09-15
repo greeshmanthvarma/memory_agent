@@ -65,6 +65,7 @@ async def get_memory_by_query(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@memory_router.get("")
 @memory_router.get("/")
 async def get_all_memories(
     user: UserModel = Depends(get_current_user),
