@@ -123,11 +123,40 @@ For local development, sparse embeddings fall back to the local FastEmbed SPLADE
 ## Deployment
 
 - Frontend deployed on Vercel (SPA + serverless API proxy) — [project site](https://coherence-agent.vercel.app) serves the UI showcase
-- Backend was deployed on AWS Elastic Beanstalk (currently offline)
+- Backend deployed on [Railway](https://railway.com) (Docker, long-running FastAPI process)
 - PostgreSQL hosted on Neon (TLS, asyncpg)
 - Qdrant Cloud for vector search
 
 The frontend never talks directly to databases or OpenAI; all access is mediated by the backend.
+
+### Deploy the backend on Railway
+
+1. Create a project at [railway.com](https://railway.com) and add a **GitHub** service from this repo.
+2. Set the service **Root Directory** to `backend` so Railway builds `backend/Dockerfile`.
+3. Name the service `backend` (the GitHub Actions deploy workflow targets that name).
+4. Generate a public domain under **Settings → Networking**.
+5. Set a healthcheck path of `/health` (timeout 300s — startup compiles the LangGraph checkpointer).
+6. Add these **service variables** (do not commit them):
+
+```
+DATABASE_URL=postgresql+asyncpg://user:password@host/dbname?sslmode=require
+QDRANT_URL=https://your-cluster.qdrant.io
+QDRANT_API_KEY=...
+OPENAI_API_KEY=...
+JINA_API_KEY=...
+JWT_SECRET=...
+CORS_ORIGINS=https://coherence-agent.vercel.app
+COOKIE_SECURE=true
+DISABLE_LOCAL_SPLADE=true
+```
+
+`PORT` is injected by Railway; the container already binds to it.
+
+7. On Vercel, set `BACKEND_URL` to the Railway public URL (no trailing slash), e.g. `https://backend-production-xxxx.up.railway.app`.
+
+Manual deploys: GitHub → Actions → **Deploy Backend** (`workflow_dispatch`). Add a Railway [project token](https://docs.railway.com/guides/variables#project-tokens) as the `RAILWAY_TOKEN` repository secret.
+
+Railway also auto-deploys on git push if the GitHub repo is connected; use the Action only when you want a manual redeploy.
 
 ## Prerequisites
 
@@ -160,7 +189,7 @@ CORS_ORIGINS=http://localhost:5173
 - **Neon (or any URL with query params)**: The app strips the query string from `DATABASE_URL` and sets `ssl=True` in `connect_args` so asyncpg does not receive unsupported params (e.g. `channel_binding`).
 - **Qdrant**: Payload indexes on `user_id` (integer) and `is_superseded` (bool) are created idempotently on collection creation and before filtered search so they work on Qdrant Cloud.
 
-**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. The Vercel deployment hosts the UI showcase; API requests are proxied to the backend when it is running (no backend URL in the repo).
+**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. On Vercel, set `BACKEND_URL` to the Railway backend origin so Edge middleware and the `/api/chat` and `/api/memory` serverless proxies can reach it.
 
 ## Installation
 
@@ -261,7 +290,8 @@ memory agent/
 │   │       ├── llm_service.py          # LangGraph chat + retrieval + reflection + mutation worker
 │   │       ├── memory_service.py       # Memory CRUD + dedup + Qdrant integration
 │   │       ├── qdrant_service.py       # Qdrant client, search, and payload indexing
-│   ├── Procfile             # web: uvicorn app.main:app --host 0.0.0.0 --port 8000
+│   ├── Dockerfile           # Railway production image (binds to $PORT)
+│   ├── Procfile             # web: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 │   ├── requirements.txt
 │   └── pyproject.toml
 ├── frontend/

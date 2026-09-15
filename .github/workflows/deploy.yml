@@ -4,24 +4,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create deployment zip
-        working-directory: backend
-        run: zip -r ../deploy.zip app/ Procfile requirements.txt
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
-      - name: Deploy to Elastic Beanstalk
-        uses: einaregilsson/beanstalk-deploy@v22
-        with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          region: us-east-2
-          application_name: Coherence
-          environment_name: Coherence-env
-          version_label: ${{ github.sha }}
-          deployment_package: deploy.zip
-          use_existing_version_if_available: true
+      - name: Deploy to Railway
+        working-directory: backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --ci --detach --service backend
