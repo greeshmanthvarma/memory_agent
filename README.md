@@ -10,7 +10,7 @@ Coherence is a personal memory agent that uses a LangGraph-powered chat pipeline
 [![Qdrant](https://img.shields.io/badge/Qdrant-vector%20DB-7C3AED)](https://qdrant.tech/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o%20mini-412991?logo=openai)](https://openai.com/)
 
-**[Project site (UI showcase)](https://coherence-agent.vercel.app)** — _Interactive demo currently offline; run locally for full functionality._
+**[Project site](https://coherence-agent.vercel.app)** — hosted frontend on Vercel, API proxied to the Railway backend.
 
 ## Features
 
@@ -122,7 +122,7 @@ For local development, sparse embeddings fall back to the local FastEmbed SPLADE
 
 ## Deployment
 
-- Frontend deployed on Vercel (SPA + serverless API proxy) — [project site](https://coherence-agent.vercel.app) serves the UI showcase
+- Frontend deployed on Vercel (SPA + serverless API proxy) — [project site](https://coherence-agent.vercel.app)
 - Backend deployed on [Railway](https://railway.com) (Docker, long-running FastAPI process)
 - PostgreSQL hosted on Neon (TLS, asyncpg)
 - Qdrant Cloud for vector search

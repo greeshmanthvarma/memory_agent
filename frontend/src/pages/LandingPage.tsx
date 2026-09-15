@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { useTheme } from '@/ThemeContext'
 import { Sun, Moon, ExternalLinkIcon, MousePointer, PanelRight, SquarePen, Bubbles, MessageSquare, Search, Reply, BrainCog, ScanSearch, Sparkles, Info } from "lucide-react"
 
-const DEMO_OFFLINE = true
+const DEMO_OFFLINE = false
 import MemoryBubble from '@/components/memory/MemoryBubble'
 import AnimatedPulse from '@/components/animatedPulse'
 import type { Memory } from '@/types'
