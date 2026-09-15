@@ -122,41 +122,12 @@ For local development, sparse embeddings fall back to the local FastEmbed SPLADE
 
 ## Deployment
 
-- Frontend deployed on Vercel (SPA + serverless API proxy) — [project site](https://coherence-agent.vercel.app)
-- Backend deployed on [Railway](https://railway.com) (Docker, long-running FastAPI process)
-- PostgreSQL hosted on Neon (TLS, asyncpg)
-- Qdrant Cloud for vector search
+- **Frontend** – Vercel ([coherence-agent.vercel.app](https://coherence-agent.vercel.app)): SPA plus Edge middleware and serverless proxies for `/api/*`. Production sets `BACKEND_URL` to the Railway origin (no trailing slash).
+- **Backend** – Railway Docker service from `backend/Dockerfile` (GitHub connected, root directory `backend`). Auto-deploys on `backend/**` changes. Healthcheck is `GET /health` (300s timeout). `$PORT` is injected at runtime; a Dockerfile start command must run in a shell so it expands.
+- **PostgreSQL** – Neon (`postgresql+asyncpg`, TLS).
+- **Vectors** – Qdrant Cloud.
 
-The frontend never talks directly to databases or OpenAI; all access is mediated by the backend.
-
-### Deploy the backend on Railway
-
-1. Create a project at [railway.com](https://railway.com) and add a **GitHub** service from this repo.
-2. Set the service **Root Directory** to `backend` so Railway builds `backend/Dockerfile`.
-3. Name the service `backend` (the GitHub Actions deploy workflow targets that name).
-4. Generate a public domain under **Settings → Networking**.
-5. Set a healthcheck path of `/health` (timeout 300s — startup compiles the LangGraph checkpointer).
-6. Add these **service variables** (do not commit them):
-
-```
-DATABASE_URL=postgresql+asyncpg://user:password@host/dbname?sslmode=require
-QDRANT_URL=https://your-cluster.qdrant.io
-QDRANT_API_KEY=...
-OPENAI_API_KEY=...
-JINA_API_KEY=...
-JWT_SECRET=...
-CORS_ORIGINS=https://coherence-agent.vercel.app
-COOKIE_SECURE=true
-DISABLE_LOCAL_SPLADE=true
-```
-
-`PORT` is injected by Railway; the container already binds to it.
-
-7. On Vercel, set `BACKEND_URL` to the Railway public URL (no trailing slash), e.g. `https://backend-production-xxxx.up.railway.app`.
-
-Manual deploys: GitHub → Actions → **Deploy Backend** (`workflow_dispatch`). Add a Railway [project token](https://docs.railway.com/guides/variables#project-tokens) as the `RAILWAY_TOKEN` repository secret.
-
-Railway also auto-deploys on git push if the GitHub repo is connected; use the Action only when you want a manual redeploy.
+The frontend never talks directly to databases or OpenAI. Optional manual backend redeploy: GitHub Actions **Deploy Backend** (`workflow_dispatch`) with a `RAILWAY_TOKEN` secret.
 
 ## Prerequisites
 
@@ -189,7 +160,7 @@ CORS_ORIGINS=http://localhost:5173
 - **Neon (or any URL with query params)**: The app strips the query string from `DATABASE_URL` and sets `ssl=True` in `connect_args` so asyncpg does not receive unsupported params (e.g. `channel_binding`).
 - **Qdrant**: Payload indexes on `user_id` (integer) and `is_superseded` (bool) are created idempotently on collection creation and before filtered search so they work on Qdrant Cloud.
 
-**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. On Vercel, set `BACKEND_URL` to the Railway backend origin so Edge middleware and the `/api/chat` and `/api/memory` serverless proxies can reach it.
+**Frontend** – None for local development. The Vite dev server proxies `/api` to the backend. In production, Vercel `BACKEND_URL` is the Railway origin used by Edge middleware and the `/api/chat` and `/api/memory` serverless proxies.
 
 ## Installation
 
@@ -236,7 +207,7 @@ npm run dev
 
 4. Open http://localhost:5173
 
-To browse the UI without running locally, visit the [project site](https://coherence-agent.vercel.app) above. For the full interactive experience, follow the setup steps in this README.
+The hosted app is at [coherence-agent.vercel.app](https://coherence-agent.vercel.app) (Vercel frontend, Railway API). Use the steps above to run the same stack locally.
 
 ## API Overview
 
@@ -296,32 +267,32 @@ memory agent/
 │   └── pyproject.toml
 ├── frontend/
 │   ├── api/
-│   │   ├── chat.js          # Serverless proxy for POST /api/chat (60s timeout)
-│   │   └── memory.js        # Serverless proxy for GET /api/memory (60s timeout)
-│   ├── middleware.js        # Edge Middleware: pass-through for chat/memory list; proxy rest of /api/* to BACKEND_URL
+│   │   ├── chat.ts          # Serverless proxy for POST /api/chat (60s timeout)
+│   │   └── memory.ts        # Serverless proxy for GET /api/memory (60s timeout)
+│   ├── middleware.ts        # Edge Middleware: pass-through for chat/memory list; proxy rest of /api/* to BACKEND_URL
 │   ├── vercel.json          # functions (maxDuration 60), rewrites (SPA fallback to index.html)
 │   ├── src/
-│   │   ├── App.jsx
-│   │   ├── AuthContext.jsx
-│   │   ├── ThemeContext.jsx
+│   │   ├── App.tsx
+│   │   ├── AuthContext.tsx
+│   │   ├── ThemeContext.tsx
 │   │   ├── components/
-│   │   │   ├── app-sidebar.jsx
-│   │   │   ├── AlertDialog.jsx
-│   │   │   ├── LogMemoryDialog.jsx
-│   │   │   ├── ViewMemoryChangesDialog.jsx
+│   │   │   ├── app-sidebar.tsx
+│   │   │   ├── AlertDialog.tsx
+│   │   │   ├── LogMemoryDialog.tsx
+│   │   │   ├── ViewMemoryChangesDialog.tsx
 │   │   │   ├── memory/
-│   │   │   │   ├── MemoryBubble.jsx
-│   │   │   │   ├── MemoryDialog.jsx
-│   │   │   │   ├── MemoryList.jsx
-│   │   │   │   └── MemoryBubblesGrid.jsx
+│   │   │   │   ├── MemoryBubble.tsx
+│   │   │   │   ├── MemoryDialog.tsx
+│   │   │   │   ├── MemoryList.tsx
+│   │   │   │   └── MemoryBubblesGrid.tsx
 │   │   │   └── ...
 │   │   └── pages/
-│   │       ├── LandingPage.jsx
-│   │       ├── ChatPage.jsx
-│   │       ├── MemorySpacePage.jsx
-│   │       ├── LoginPage.jsx
-│   │       └── RegisterPage.jsx
-│   └── vite.config.js
+│   │       ├── LandingPage.tsx
+│   │       ├── ChatPage.tsx
+│   │       ├── MemorySpacePage.tsx
+│   │       ├── LoginPage.tsx
+│   │       └── RegisterPage.tsx
+│   └── vite.config.ts
 └── README.md
 ```
 
